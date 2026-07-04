@@ -63,16 +63,43 @@ export function hireWorker(): void {
 
 // ---- Crafting ----------------------------------------------------------------
 
-export function startCraft(recipeId: string): void {
+// Starts a craft, or queues extra runs behind the running job. Inputs are paid
+// per run (the first immediately, the rest as each run starts), so cancelling
+// the queue never needs a refund.
+export function startCraft(recipeId: string, times = 1): void {
   game.update((s) => {
     const recipe = RECIPE_BY_ID[recipeId];
-    if (!recipe || !s.unlockedRecipes.includes(recipeId)) return s;
-    if (recipeId in s.craftJobs) return s; // one job per recipe at a time
+    if (!recipe || !s.unlockedRecipes.includes(recipeId) || times < 1) return s;
+    if (recipeId in s.craftJobs) {
+      // already running: just extend the repeat queue
+      s.craftRepeat = { ...s.craftRepeat, [recipeId]: (s.craftRepeat[recipeId] ?? 0) + times };
+      return { ...s };
+    }
     if (!canAfford(s, recipe.inputs)) return s;
     spendInputs(s, recipe.inputs);
     s.craftJobs = { ...s.craftJobs, [recipeId]: 0 };
+    if (times > 1) s.craftRepeat = { ...s.craftRepeat, [recipeId]: times - 1 };
     return { ...s };
   });
+}
+
+export function cancelCraftQueue(recipeId: string): void {
+  game.update((s) => {
+    if (!(recipeId in s.craftRepeat)) return s;
+    const { [recipeId]: _, ...rest } = s.craftRepeat;
+    return { ...s, craftRepeat: rest };
+  });
+}
+
+// How many runs of a recipe the current stock can pay for.
+export function affordableRuns(s: GameState, recipeId: string): number {
+  const recipe = RECIPE_BY_ID[recipeId];
+  if (!recipe) return 0;
+  let runs = Infinity;
+  for (const [id, n] of Object.entries(recipe.inputs)) {
+    runs = Math.min(runs, Math.floor((s.resources[id] ?? 0) / n));
+  }
+  return Number.isFinite(runs) ? runs : 0;
 }
 
 // ---- Research queue ------------------------------------------------------------

@@ -20,6 +20,7 @@ export function createInitialState(): GameState {
     researchQueue: [],
     researchProgress: 0,
     craftJobs: {},
+    craftRepeat: {},
     multipliers: computeMultipliers([]),
     lastSeen: Date.now(),
   };

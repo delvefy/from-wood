@@ -12,10 +12,25 @@ export interface ResourceDef {
   extractTimeSeconds: number; // gather cycle length (before speed multipliers)
 }
 
+// Crafting categories, in display order. Materials are refined inputs for
+// everything else; wonders are the end-game obscene-cost builds.
+export type RecipeCategory =
+  | 'materials'
+  | 'components'
+  | 'tools'
+  | 'goods'
+  | 'machines'
+  | 'arcana'
+  | 'magitech'
+  | 'wonders';
+
 export interface Recipe {
   id: string;
   name: string;
   icon: string;
+  category: RecipeCategory;
+  // Design rule: at most 3 distinct input types per recipe. Depth and
+  // quantities carry the cost curve, never more ingredient slots.
   inputs: Record<ResourceId, number>;
   outputs: Record<ResourceId, number>;
   craftTimeSeconds: number; // craft job length (before speed multipliers)
@@ -77,6 +92,7 @@ export interface GameState {
   researchQueue: TechId[]; // head is being researched; one slot, rest wait
   researchProgress: number; // seconds into the queue head
   craftJobs: Record<string, number>; // recipeId -> seconds of progress (one job per recipe)
+  craftRepeat: Record<string, number>; // recipeId -> queued repeat runs after the current job (inputs paid per run)
   multipliers: Multipliers; // derived from tech, recomputed on unlock/load
   lastSeen: number; // epoch ms, for offline progress
 }

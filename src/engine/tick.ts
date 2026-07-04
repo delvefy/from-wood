@@ -94,21 +94,34 @@ export function tick(s: GameState, seconds: number): GameState {
   }
 
   // Craft jobs: one per recipe, inputs already consumed at start; outputs land
-  // when the bar fills, scaled by craft efficiency. Jobs do not auto-repeat.
+  // when the bar fills, scaled by craft efficiency. Queued repeat runs pay
+  // their inputs as each run starts; an unaffordable repeat drops the queue.
+  // The loop handles multiple completions per tick for offline fast-forward.
   for (const [recipeId, progress] of Object.entries(s.craftJobs)) {
     const recipe = RECIPE_BY_ID[recipeId];
     if (!recipe) {
       delete s.craftJobs[recipeId];
+      delete s.craftRepeat[recipeId];
       continue;
     }
     const duration = recipe.craftTimeSeconds;
-    const next = progress + seconds;
-    if (next >= duration) {
+    let next = progress + seconds;
+    let running = true;
+    while (running && next >= duration) {
       grantOutputs(s, scaleOutputs(recipe.outputs, s.multipliers.craftOutput));
-      delete s.craftJobs[recipeId];
-    } else {
-      s.craftJobs[recipeId] = next;
+      next -= duration;
+      const repeat = s.craftRepeat[recipeId] ?? 0;
+      if (repeat > 0 && canAfford(s, recipe.inputs)) {
+        spendInputs(s, recipe.inputs);
+        if (repeat === 1) delete s.craftRepeat[recipeId];
+        else s.craftRepeat[recipeId] = repeat - 1;
+      } else {
+        running = false;
+        delete s.craftRepeat[recipeId];
+      }
     }
+    if (running) s.craftJobs[recipeId] = next;
+    else delete s.craftJobs[recipeId];
   }
 
   return s;

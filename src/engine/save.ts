@@ -39,6 +39,7 @@ export async function loadGame(): Promise<OfflineReport | null> {
     gatherAssignment: { ...(saved.gatherAssignment ?? {}) },
     gatherProgress: { ...(saved.gatherProgress ?? {}) },
     craftJobs: { ...(saved.craftJobs ?? {}) },
+    craftRepeat: { ...(saved.craftRepeat ?? {}) },
     unlockedResources: union(base.unlockedResources, saved.unlockedResources),
     unlockedRecipes: union(base.unlockedRecipes, saved.unlockedRecipes),
     unlockedTech: union([], saved.unlockedTech),

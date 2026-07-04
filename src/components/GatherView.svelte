@@ -1,6 +1,6 @@
 <script lang="ts">
   import ProgressBar from './ProgressBar.svelte';
-  import { PLANNED_MATERIALS, RESOURCES } from '../content/resources';
+  import { RESOURCES } from '../content/resources';
   import { TECH } from '../content/tech';
   import { WORKER } from '../content/workers';
   import { assignWorker, idleWorkers } from '../engine/actions';
@@ -27,7 +27,6 @@
     magic: '✦ Magic',
     tech: '⚙ Tech',
     magitech: '⚡ Magitech',
-    neutral: 'Neutral',
   } as const;
 </script>
 
@@ -89,20 +88,6 @@
     {/each}
   {/if}
 
-  <h3 class="section muted">🧪 Planned</h3>
-  {#each PLANNED_MATERIALS as p (p.name)}
-    <div class="card dim">
-      <div class="top">
-        <span class="icon grey">{p.icon}</span>
-        <span class="name">{p.name}</span>
-        <span class="tier muted">Tier {p.tier}</span>
-      </div>
-      <span class="hint muted">
-        Coming soon
-        <span class="branch {p.branch}">{branchLabel[p.branch]}</span>
-      </span>
-    </div>
-  {/each}
 </div>
 
 <style>

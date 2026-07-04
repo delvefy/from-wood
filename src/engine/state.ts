@@ -1,6 +1,7 @@
 import { writable } from 'svelte/store';
 import { RESOURCES } from '../content/resources';
 import { RECIPES } from '../content/recipes';
+import { WORKER } from '../content/workers';
 import { computeMultipliers } from './multipliers';
 import type { GameState } from './types';
 
@@ -10,15 +11,15 @@ export function createInitialState(): GameState {
   return {
     resources,
     credits: 0,
-    researchPoints: 0,
     unlockedResources: RESOURCES.filter((r) => r.unlockedByDefault).map((r) => r.id),
     unlockedRecipes: RECIPES.filter((r) => r.unlockedByDefault).map((r) => r.id),
     unlockedTech: [],
-    unlockedWorkerTypes: [],
-    workers: { harvester: 0, researcher: 0, crafter: 0 },
-    harvesterAssignment: {},
-    crafterRecipe: null,
-    crafterProgress: 0,
+    workers: WORKER.startingCount,
+    gatherAssignment: {},
+    gatherProgress: {},
+    researchQueue: [],
+    researchProgress: 0,
+    craftJobs: {},
     multipliers: computeMultipliers([]),
     lastSeen: Date.now(),
   };

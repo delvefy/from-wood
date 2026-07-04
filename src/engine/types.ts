@@ -1,6 +1,5 @@
 export type ResourceId = string;
 export type TechId = string;
-export type WorkerType = 'harvester' | 'researcher' | 'crafter';
 
 export interface ResourceDef {
   id: ResourceId;
@@ -9,7 +8,8 @@ export interface ResourceDef {
   tier: number; // gating / progression order
   baseSellPrice: number; // credits per unit when sold
   unlockedByDefault: boolean;
-  manualHarvestAmount: number; // gained per tap; 0 = crafted item, not harvestable
+  harvestAmount: number; // gained per completed gather cycle per worker; 0 = crafted item, not gatherable
+  extractTimeSeconds: number; // gather cycle length (before speed multipliers)
 }
 
 export interface Recipe {
@@ -18,63 +18,65 @@ export interface Recipe {
   icon: string;
   inputs: Record<ResourceId, number>;
   outputs: Record<ResourceId, number>;
-  researchOutput?: number; // research points granted per craft
-  craftTimeSeconds: number; // for crafter automation
+  craftTimeSeconds: number; // craft job length (before speed multipliers)
   unlockedByDefault: boolean;
 }
 
-// Tech effects are a discriminated union so the engine can apply them generically
+// Tech effects are a discriminated union so the engine can apply them generically.
+// There are deliberately NO speed effects: progression only improves efficiency
+// (yield per gather cycle / output per craft job), in small additive percents.
 export type TechEffect =
   | { kind: 'unlockResource'; id: ResourceId }
   | { kind: 'unlockRecipe'; id: string }
-  | { kind: 'unlockWorkerType'; workerType: WorkerType }
-  | { kind: 'harvestMultiplier'; resource: ResourceId | 'all'; factor: number }
-  | { kind: 'craftSpeedMultiplier'; factor: number }
-  | { kind: 'workerEfficiencyMultiplier'; workerType: WorkerType; factor: number };
+  | { kind: 'gatherEfficiency'; resource: ResourceId | 'all'; percent: number }
+  | { kind: 'craftEfficiency'; percent: number };
+
+// Skill-tree branches: magic grows left, tech grows right, magitech runs along
+// the vertical spine and requires nodes from both sides.
+export type TechBranch = 'magic' | 'tech' | 'magitech';
 
 export interface TechNode {
   id: TechId;
   name: string;
   description: string;
-  cost: number; // research points
-  requires: TechId[]; // prerequisite nodes
+  cost: Record<ResourceId, number>; // resources paid when queued (refunded on cancel)
+  researchTimeSeconds: number; // time in the single research slot
+  requires: TechId[]; // prerequisite nodes (all must be owned or queued)
   effects: TechEffect[];
-  // layout hints for the tree view (column 0..2, row top-down)
-  col: number;
-  row: number;
+  branch: TechBranch;
+  // world coordinates on the infinite canvas; root sits at (0, 0)
+  x: number;
+  y: number;
+  major?: boolean; // keystone/unlock nodes render larger
 }
 
-export interface WorkerTypeDef {
-  type: WorkerType;
+export interface WorkerConfig {
   name: string;
   icon: string;
   description: string;
-  hireCost: number; // credits for the first worker
-  hireCostGrowth: number; // multiplier per additional worker owned
-  // harvester: resource units per tick per worker; researcher: research points
-  // per tick per worker; crafter: craft-seconds of progress per tick per worker
-  productionPerTick: number;
+  hireCost: number; // credits for the first hired worker
+  hireCostGrowth: number; // multiplier per additional hired worker
+  startingCount: number; // free gather slots at game start
 }
 
 export interface Multipliers {
-  harvestAll: number;
-  harvestByResource: Record<ResourceId, number>;
-  craftSpeed: number;
-  workerEfficiency: Record<WorkerType, number>;
+  gatherAll: number; // 1 + sum of 'all' gatherEfficiency percents / 100
+  gatherByResource: Record<ResourceId, number>; // per-resource, same additive scheme
+  craftOutput: number; // multiplies craft job outputs
 }
 
 export interface GameState {
   resources: Record<ResourceId, number>;
   credits: number;
-  researchPoints: number;
   unlockedResources: ResourceId[];
   unlockedRecipes: string[];
   unlockedTech: TechId[];
-  unlockedWorkerTypes: WorkerType[];
-  workers: Record<WorkerType, number>; // how many hired
-  harvesterAssignment: Record<ResourceId, number>; // harvesters allocated per resource
-  crafterRecipe: string | null; // recipe crafters currently run
-  crafterProgress: number; // accumulated craft-seconds toward the next auto-craft
+  workers: number; // gather slots owned (1 free at start, more hired with credits)
+  gatherAssignment: Record<ResourceId, number>; // workers allocated per resource
+  gatherProgress: Record<ResourceId, number>; // seconds into the current gather cycle
+  researchQueue: TechId[]; // head is being researched; one slot, rest wait
+  researchProgress: number; // seconds into the queue head
+  craftJobs: Record<string, number>; // recipeId -> seconds of progress (one job per recipe)
   multipliers: Multipliers; // derived from tech, recomputed on unlock/load
   lastSeen: number; // epoch ms, for offline progress
 }

@@ -1,11 +1,10 @@
 import { RECIPE_BY_ID } from '../content/recipes';
 import { RESOURCE_BY_ID } from '../content/resources';
 import { TECH_BY_ID } from '../content/tech';
-import { WORKER_BY_TYPE } from '../content/workers';
-import { computeMultipliers, harvestMultiplier } from './multipliers';
+import { WORKER } from '../content/workers';
 import { game } from './state';
 import { canAfford, grantOutputs, spendInputs, tick } from './tick';
-import type { GameState, Recipe, ResourceId, TechId, WorkerType } from './types';
+import type { GameState, ResourceId, TechId } from './types';
 
 // ---- Game loop -------------------------------------------------------------
 
@@ -26,55 +25,104 @@ export function runTick(now = Date.now()): void {
   game.update((s) => ({ ...tick(s, seconds) }));
 }
 
-// ---- Manual actions (outside the tick) --------------------------------------
+// ---- Workers / gather slots --------------------------------------------------
 
-export function harvest(resourceId: ResourceId): void {
+export function assignedWorkers(s: GameState): number {
+  return Object.values(s.gatherAssignment).reduce((sum, n) => sum + n, 0);
+}
+
+export function idleWorkers(s: GameState): number {
+  return s.workers - assignedWorkers(s);
+}
+
+export function assignWorker(resourceId: ResourceId, delta: number): void {
   game.update((s) => {
     const def = RESOURCE_BY_ID[resourceId];
-    if (!def || def.manualHarvestAmount <= 0 || !s.unlockedResources.includes(resourceId)) return s;
-    s.resources[resourceId] =
-      (s.resources[resourceId] ?? 0) +
-      def.manualHarvestAmount * harvestMultiplier(s.multipliers, resourceId);
+    if (!def || def.harvestAmount <= 0 || !s.unlockedResources.includes(resourceId)) return s;
+    const current = s.gatherAssignment[resourceId] ?? 0;
+    const next = Math.max(0, Math.min(current + delta, current + idleWorkers(s)));
+    if (next === current) return s;
+    s.gatherAssignment = { ...s.gatherAssignment, [resourceId]: next };
     return { ...s };
   });
 }
 
-export function craft(recipeId: string): void {
+// Hired workers = owned minus the free starting slots; cost scales with those.
+export function nextHireCost(workersOwned: number): number {
+  const hired = Math.max(0, workersOwned - WORKER.startingCount);
+  return Math.ceil(WORKER.hireCost * WORKER.hireCostGrowth ** hired);
+}
+
+export function hireWorker(): void {
+  game.update((s) => {
+    const cost = nextHireCost(s.workers);
+    if (s.credits < cost) return s;
+    return { ...s, credits: s.credits - cost, workers: s.workers + 1 };
+  });
+}
+
+// ---- Crafting ----------------------------------------------------------------
+
+export function startCraft(recipeId: string): void {
   game.update((s) => {
     const recipe = RECIPE_BY_ID[recipeId];
-    if (!recipe || !s.unlockedRecipes.includes(recipeId) || !canAfford(s, recipe.inputs)) return s;
+    if (!recipe || !s.unlockedRecipes.includes(recipeId)) return s;
+    if (recipeId in s.craftJobs) return s; // one job per recipe at a time
+    if (!canAfford(s, recipe.inputs)) return s;
     spendInputs(s, recipe.inputs);
-    grantOutputs(s, recipe.outputs);
-    if (recipe.researchOutput) s.researchPoints += recipe.researchOutput;
-    unlockOutputs(s, recipe);
+    s.craftJobs = { ...s.craftJobs, [recipeId]: 0 };
     return { ...s };
   });
 }
 
-export function buyTech(techId: TechId): void {
+// ---- Research queue ------------------------------------------------------------
+
+// Research costs resources, paid up-front when the node is queued.
+export function queueResearch(techId: TechId): void {
   game.update((s) => {
     const node = TECH_BY_ID[techId];
-    if (!node || s.unlockedTech.includes(techId)) return s;
-    if (!node.requires.every((r) => s.unlockedTech.includes(r))) return s;
-    if (s.researchPoints < node.cost) return s;
-    s.researchPoints -= node.cost;
-    s.unlockedTech.push(techId);
-    for (const effect of node.effects) {
-      if (effect.kind === 'unlockResource') {
-        pushUnique(s.unlockedResources, effect.id);
-      } else if (effect.kind === 'unlockRecipe') {
-        pushUnique(s.unlockedRecipes, effect.id);
-        const recipe = RECIPE_BY_ID[effect.id];
-        if (recipe) unlockOutputs(s, recipe);
-      } else if (effect.kind === 'unlockWorkerType') {
-        pushUnique(s.unlockedWorkerTypes, effect.workerType);
-      }
-      // Multiplier effects need no unlock step — they're derived below.
-    }
-    s.multipliers = computeMultipliers(s.unlockedTech);
-    return { ...s };
+    if (!node || s.unlockedTech.includes(techId) || s.researchQueue.includes(techId)) return s;
+    const satisfied = node.requires.every(
+      (r) => s.unlockedTech.includes(r) || s.researchQueue.includes(r),
+    );
+    if (!satisfied || !canAfford(s, node.cost)) return s;
+    spendInputs(s, node.cost);
+    return { ...s, researchQueue: [...s.researchQueue, techId] };
   });
 }
+
+// Removes a queued node plus everything queued behind it that depends on it.
+// All removed nodes get their resource cost refunded in full.
+export function cancelResearch(techId: TechId): void {
+  game.update((s) => {
+    if (!s.researchQueue.includes(techId)) return s;
+    const removed = new Set<TechId>([techId]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const id of s.researchQueue) {
+        if (removed.has(id)) continue;
+        const node = TECH_BY_ID[id];
+        if (node?.requires.some((r) => removed.has(r))) {
+          removed.add(id);
+          changed = true;
+        }
+      }
+    }
+    for (const id of removed) {
+      const node = TECH_BY_ID[id];
+      if (node) grantOutputs(s, node.cost);
+    }
+    const wasHead = s.researchQueue[0] === techId;
+    return {
+      ...s,
+      researchQueue: s.researchQueue.filter((id) => !removed.has(id)),
+      researchProgress: wasHead ? 0 : s.researchProgress,
+    };
+  });
+}
+
+// ---- Economy -------------------------------------------------------------------
 
 export function sellResource(resourceId: ResourceId, amount: number | 'all'): void {
   game.update((s) => {
@@ -87,54 +135,4 @@ export function sellResource(resourceId: ResourceId, amount: number | 'all'): vo
     s.credits += n * def.baseSellPrice;
     return { ...s };
   });
-}
-
-export function nextHireCost(type: WorkerType, owned: number): number {
-  const def = WORKER_BY_TYPE[type];
-  return Math.ceil(def.hireCost * def.hireCostGrowth ** owned);
-}
-
-export function hireWorker(type: WorkerType): void {
-  game.update((s) => {
-    if (!s.unlockedWorkerTypes.includes(type)) return s;
-    const cost = nextHireCost(type, s.workers[type]);
-    if (s.credits < cost) return s;
-    s.credits -= cost;
-    s.workers[type] += 1;
-    return { ...s };
-  });
-}
-
-export function assignedHarvesters(s: GameState): number {
-  return Object.values(s.harvesterAssignment).reduce((sum, n) => sum + n, 0);
-}
-
-export function assignHarvester(resourceId: ResourceId, delta: number): void {
-  game.update((s) => {
-    const current = s.harvesterAssignment[resourceId] ?? 0;
-    const idle = s.workers.harvester - assignedHarvesters(s);
-    const next = Math.max(0, Math.min(current + delta, current + idle));
-    if (next === current) return s;
-    s.harvesterAssignment = { ...s.harvesterAssignment, [resourceId]: next };
-    return { ...s };
-  });
-}
-
-export function setCrafterRecipe(recipeId: string | null): void {
-  game.update((s) => {
-    if (recipeId !== null && !s.unlockedRecipes.includes(recipeId)) return s;
-    if (s.crafterRecipe === recipeId) return s;
-    return { ...s, crafterRecipe: recipeId, crafterProgress: 0 };
-  });
-}
-
-// ---- Helpers ----------------------------------------------------------------
-
-function pushUnique<T>(arr: T[], value: T): void {
-  if (!arr.includes(value)) arr.push(value);
-}
-
-// Crafting or unlocking a recipe reveals its output items in Market/top bar.
-function unlockOutputs(s: GameState, recipe: Recipe): void {
-  for (const id of Object.keys(recipe.outputs)) pushUnique(s.unlockedResources, id);
 }

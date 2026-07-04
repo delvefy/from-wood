@@ -7,6 +7,7 @@
   import ResearchView from './components/ResearchView.svelte';
   import ResourceBar from './components/ResourceBar.svelte';
   import { RESOURCE_BY_ID } from './content/resources';
+  import { TECH_BY_ID } from './content/tech';
   import { resetTickClock, runTick } from './engine/actions';
   import { loadGame, saveGame, type OfflineReport } from './engine/save';
   import { formatDuration, formatNumber } from './util/format';
@@ -64,9 +65,9 @@
         <h2>While you were away…</h2>
         <p class="muted">{formatDuration(offline.seconds)} of automated work</p>
         <ul>
-          {#if offline.researchGained > 0.005}
-            <li>🔬 +{formatNumber(offline.researchGained)} research</li>
-          {/if}
+          {#each offline.techCompleted as id (id)}
+            <li>🔬 Researched {TECH_BY_ID[id]?.name ?? id}</li>
+          {/each}
           {#each Object.entries(offline.resourceGains) as [id, gain] (id)}
             <li>{RESOURCE_BY_ID[id]?.icon} +{formatNumber(gain)} {RESOURCE_BY_ID[id]?.name ?? id}</li>
           {/each}
@@ -108,7 +109,6 @@
   .modal {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: var(--radius);
     padding: 20px;
     width: min(92vw, 360px);
   }

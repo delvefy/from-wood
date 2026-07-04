@@ -1,110 +1,360 @@
 <script lang="ts">
-  import { TECH } from '../content/tech';
-  import { buyTech } from '../engine/actions';
+  import ProgressBar from './ProgressBar.svelte';
+  import { RESOURCE_BY_ID } from '../content/resources';
+  import { TECH, TECH_BY_ID } from '../content/tech';
+  import { cancelResearch, queueResearch } from '../engine/actions';
   import { game } from '../engine/state';
-  import { formatNumber } from '../util/format';
+  import { canAfford } from '../engine/tick';
   import type { TechNode } from '../engine/types';
 
-  // Layout: 3 columns in a 300-unit-wide coordinate space (stretched to 100%
-  // width via preserveAspectRatio="none" so SVG edges line up with CSS nodes).
-  const COLS = 3;
-  const CELL_W = 100;
-  const ROW_H = 132;
-  const NODE_H = 116;
+  // ---- Camera: world point at the viewport center, plus zoom -----------------
+  let cam = $state({ x: 0, y: -60 });
+  let zoom = $state(1);
+  let vw = $state(0);
+  let vh = $state(0);
+  let viewportEl: HTMLDivElement | undefined = $state();
 
-  const rows = Math.max(...TECH.map((t) => t.row)) + 1;
+  const MIN_ZOOM = 0.3;
+  const MAX_ZOOM = 2.5;
 
+  function clampZoom(z: number): number {
+    return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z));
+  }
+
+  // Zoom keeping the viewport point (sx, sy) fixed on the same world point.
+  function zoomAt(sx: number, sy: number, nextZoom: number) {
+    const z = clampZoom(nextZoom);
+    const wx = cam.x + (sx - vw / 2) / zoom;
+    const wy = cam.y + (sy - vh / 2) / zoom;
+    cam.x = wx - (sx - vw / 2) / z;
+    cam.y = wy - (sy - vh / 2) / z;
+    zoom = z;
+  }
+
+  function recenter() {
+    cam.x = 0;
+    cam.y = -60;
+    zoom = 1;
+  }
+
+  // ---- Pan / pinch via pointer events -----------------------------------------
+  // One pointer pans; two pointers pinch-zoom around their midpoint. `moved`
+  // accumulates gesture distance so a drag never triggers a node tap.
+  const pointers = new Map<number, { x: number; y: number }>();
+  let moved = 0;
+
+  function localPoint(e: { clientX: number; clientY: number }) {
+    const rect = viewportEl!.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+
+  function onPointerDown(e: PointerEvent) {
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 1) moved = 0;
+  }
+
+  function onPointerMove(e: PointerEvent) {
+    const prev = pointers.get(e.pointerId);
+    if (!prev || !viewportEl) return;
+    const cur = { x: e.clientX, y: e.clientY };
+    if (pointers.size === 1) {
+      cam.x -= (cur.x - prev.x) / zoom;
+      cam.y -= (cur.y - prev.y) / zoom;
+      moved += Math.abs(cur.x - prev.x) + Math.abs(cur.y - prev.y);
+    } else if (pointers.size === 2) {
+      const other = [...pointers.entries()].find(([id]) => id !== e.pointerId)?.[1];
+      if (other) {
+        const d0 = Math.hypot(prev.x - other.x, prev.y - other.y);
+        const d1 = Math.hypot(cur.x - other.x, cur.y - other.y);
+        const rect = viewportEl.getBoundingClientRect();
+        const m0 = { x: (prev.x + other.x) / 2 - rect.left, y: (prev.y + other.y) / 2 - rect.top };
+        const m1 = { x: (cur.x + other.x) / 2 - rect.left, y: (cur.y + other.y) / 2 - rect.top };
+        if (d0 > 0) zoomAt(m1.x, m1.y, zoom * (d1 / d0));
+        cam.x -= (m1.x - m0.x) / zoom;
+        cam.y -= (m1.y - m0.y) / zoom;
+        moved += 10;
+      }
+    }
+    pointers.set(e.pointerId, cur);
+  }
+
+  function onPointerEnd(e: PointerEvent) {
+    pointers.delete(e.pointerId);
+  }
+
+  // Svelte marks wheel handlers passive, so attach manually to preventDefault
+  // (otherwise the page behind the canvas scrolls/zooms).
+  $effect(() => {
+    const el = viewportEl;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const p = localPoint(e);
+      zoomAt(p.x, p.y, zoom * Math.exp(-e.deltaY * 0.0015));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  });
+
+  // ---- Tree data ---------------------------------------------------------------
   const edges = TECH.flatMap((node) =>
     node.requires.map((parentId) => {
-      const parent = TECH.find((t) => t.id === parentId)!;
+      const parent = TECH_BY_ID[parentId]!;
       return {
         id: `${parentId}->${node.id}`,
         parentId,
-        x1: (parent.col + 0.5) * CELL_W,
-        y1: parent.row * ROW_H + NODE_H,
-        x2: (node.col + 0.5) * CELL_W,
-        y2: node.row * ROW_H,
+        branch: node.branch,
+        x1: parent.x,
+        y1: parent.y,
+        x2: node.x,
+        y2: node.y,
       };
     }),
   );
 
-  type Status = 'owned' | 'available' | 'locked';
+  type Status = 'owned' | 'active' | 'queued' | 'available' | 'locked';
 
   function status(node: TechNode): Status {
     if ($game.unlockedTech.includes(node.id)) return 'owned';
-    if (node.requires.every((r) => $game.unlockedTech.includes(r))) return 'available';
-    return 'locked';
+    if ($game.researchQueue[0] === node.id) return 'active';
+    if ($game.researchQueue.includes(node.id)) return 'queued';
+    const satisfied = node.requires.every(
+      (r) => $game.unlockedTech.includes(r) || $game.researchQueue.includes(r),
+    );
+    return satisfied ? 'available' : 'locked';
   }
+
+  function tap(node: TechNode, st: Status) {
+    if (moved > 8) return; // was a pan, not a tap
+    if (st === 'available') queueResearch(node.id);
+    else if (st === 'active' || st === 'queued') cancelResearch(node.id);
+  }
+
+  const activeNode = $derived(
+    $game.researchQueue.length > 0 ? TECH_BY_ID[$game.researchQueue[0]] : null,
+  );
 </script>
 
-<p class="points">🔬 {formatNumber(Math.floor($game.researchPoints * 10) / 10)} research points</p>
+<div class="wrap">
+  <div class="slot">
+    {#if activeNode}
+      <div class="slot-head">
+        <span>🔬 Researching: <strong>{activeNode.name}</strong></span>
+        <span class="muted">{Math.ceil(activeNode.researchTimeSeconds - $game.researchProgress)}s</span>
+      </div>
+      <ProgressBar value={$game.researchProgress} max={activeNode.researchTimeSeconds} />
+      {#if $game.researchQueue.length > 1}
+        <div class="queue">
+          {#each $game.researchQueue.slice(1) as id, i (id)}
+            <button class="qchip" onclick={() => cancelResearch(id)}>
+              {i + 2}. {TECH_BY_ID[id]?.name ?? id} ✕
+            </button>
+          {/each}
+        </div>
+      {/if}
+    {:else}
+      <span class="muted">🔬 Research slot idle — tap an available node to queue it.</span>
+    {/if}
+  </div>
 
-<div class="tree" style="height: {rows * ROW_H}px">
-  <svg viewBox="0 0 {COLS * CELL_W} {rows * ROW_H}" preserveAspectRatio="none" aria-hidden="true">
-    {#each edges as e (e.id)}
-      <line
-        x1={e.x1}
-        y1={e.y1}
-        x2={e.x2}
-        y2={e.y2}
-        class:done={$game.unlockedTech.includes(e.parentId)}
-      />
-    {/each}
-  </svg>
-  {#each TECH as node (node.id)}
-    {@const st = status(node)}
-    <button
-      class="node {st}"
-      class:affordable={st === 'available' && $game.researchPoints >= node.cost}
-      disabled={st !== 'available' || $game.researchPoints < node.cost}
-      style="left: calc({node.col} * 100% / {COLS}); top: {node.row * ROW_H}px; height: {NODE_H}px"
-      onclick={() => buyTech(node.id)}
+  <div
+    class="viewport"
+    role="application"
+    aria-label="Skill tree canvas — drag to pan, pinch or scroll to zoom"
+    bind:this={viewportEl}
+    bind:clientWidth={vw}
+    bind:clientHeight={vh}
+    onpointerdown={onPointerDown}
+  >
+    <div
+      class="world"
+      style="transform: translate({vw / 2 - cam.x * zoom}px, {vh / 2 - cam.y * zoom}px) scale({zoom})"
     >
-      <span class="tname">{node.name}</span>
-      <span class="tdesc">{node.description}</span>
-      <span class="tcost">{st === 'owned' ? '✓ Done' : `🔬 ${node.cost}`}</span>
-    </button>
-  {/each}
+      <svg class="edges" aria-hidden="true">
+        {#each edges as e (e.id)}
+          <line
+            x1={e.x1}
+            y1={e.y1}
+            x2={e.x2}
+            y2={e.y2}
+            class="edge {e.branch}"
+            class:done={$game.unlockedTech.includes(e.parentId)}
+          />
+        {/each}
+      </svg>
+      {#each TECH as node (node.id)}
+        {@const st = status(node)}
+        <button
+          class="node {st} {node.branch}"
+          class:major={node.major}
+          disabled={st === 'owned' || st === 'locked' || (st === 'available' && !canAfford($game, node.cost))}
+          style="left: {node.x}px; top: {node.y}px"
+          onclick={() => tap(node, st)}
+        >
+          <span class="tname">{node.name}</span>
+          <span class="tdesc">{node.description}</span>
+          {#if st === 'available' || st === 'locked'}
+            <span class="tprice">
+              {#each Object.entries(node.cost) as [id, n] (id)}
+                <span class="pitem" class:short={($game.resources[id] ?? 0) < n}>
+                  {RESOURCE_BY_ID[id]?.icon}{n}
+                </span>
+              {/each}
+            </span>
+          {/if}
+          <span class="tcost">
+            {#if st === 'owned'}
+              ✓ Done
+            {:else if st === 'active'}
+              {Math.ceil(node.researchTimeSeconds - $game.researchProgress)}s… ✕
+            {:else if st === 'queued'}
+              Queued #{$game.researchQueue.indexOf(node.id) + 1} ✕
+            {:else}
+              ⏱ {node.researchTimeSeconds}s
+            {/if}
+          </span>
+          {#if st === 'active'}
+            <ProgressBar value={$game.researchProgress} max={node.researchTimeSeconds} />
+          {/if}
+        </button>
+      {/each}
+    </div>
+
+    <span class="legend magic-l">✦ Magic</span>
+    <span class="legend magitech-l">⚡ Magitech</span>
+    <span class="legend tech-l">⚙ Tech</span>
+
+    <div class="zoom-controls">
+      <button aria-label="Zoom in" onclick={() => zoomAt(vw / 2, vh / 2, zoom * 1.25)}>+</button>
+      <button aria-label="Zoom out" onclick={() => zoomAt(vw / 2, vh / 2, zoom / 1.25)}>−</button>
+      <button aria-label="Recenter" onclick={recenter}>⌖</button>
+    </div>
+  </div>
 </div>
 
+<svelte:window onpointermove={onPointerMove} onpointerup={onPointerEnd} onpointercancel={onPointerEnd} />
+
 <style>
-  .points {
-    margin: 0 0 10px;
-    font-size: 1rem;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .tree {
-    position: relative;
-  }
-
-  svg {
-    position: absolute;
-    inset: 0;
-    width: 100%;
+  .wrap {
     height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
   }
 
-  line {
+  .slot {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    font-size: 0.9rem;
+  }
+
+  .slot-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .queue {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .qchip {
+    min-height: 32px;
+    padding: 2px 10px;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .viewport {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    touch-action: none;
+    cursor: grab;
+  }
+
+  .world {
+    position: absolute;
+    left: 0;
+    top: 0;
+    transform-origin: 0 0;
+  }
+
+  .edges {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 1px;
+    height: 1px;
+    overflow: visible;
+  }
+
+  .edge {
     stroke: var(--border);
     stroke-width: 2;
+    vector-effect: non-scaling-stroke;
   }
 
-  line.done {
-    stroke: var(--accent-dark);
+  .edge.done.magic {
+    stroke: var(--magic);
+  }
+
+  .edge.done.tech {
+    stroke: var(--tech);
+  }
+
+  .edge.done.magitech {
+    stroke: var(--magitech);
   }
 
   .node {
     position: absolute;
-    width: calc(100% / 3 - 8px);
-    margin: 0 4px;
+    width: 108px;
+    transform: translate(-50%, -50%);
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 4px;
+    gap: 3px;
     padding: 6px;
     background: var(--panel);
     text-align: center;
+  }
+
+  .node.major {
+    width: 132px;
+    padding: 10px 8px;
+  }
+
+  /* branch stripe along the top edge — flat, no glow */
+  .node::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+  }
+
+  .node.magic::before {
+    background: var(--magic);
+  }
+
+  .node.tech::before {
+    background: var(--tech);
+  }
+
+  .node.magitech::before {
+    background: var(--magitech);
   }
 
   .node:disabled {
@@ -120,27 +370,97 @@
     background: var(--panel-2);
   }
 
-  .node.affordable {
+  .node.available {
     border-color: var(--accent);
-    box-shadow: 0 0 8px rgb(143 209 102 / 25%);
+  }
+
+  .node.active {
+    border-color: var(--science);
+  }
+
+  .node.queued {
+    border-color: var(--science);
+    border-style: dashed;
   }
 
   .tname {
     font-weight: 600;
+    font-size: 0.72rem;
+  }
+
+  .node.major .tname {
     font-size: 0.8rem;
   }
 
   .tdesc {
-    font-size: 0.68rem;
+    font-size: 0.62rem;
     color: var(--muted);
   }
 
+  .tprice {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+  }
+
+  .pitem {
+    font-size: 0.65rem;
+    padding: 1px 5px;
+    background: var(--panel-2);
+    white-space: nowrap;
+  }
+
+  .pitem.short {
+    color: var(--danger);
+  }
+
   .tcost {
-    font-size: 0.75rem;
+    font-size: 0.66rem;
     font-variant-numeric: tabular-nums;
   }
 
   .node.owned .tcost {
     color: var(--accent);
+  }
+
+  .legend {
+    position: absolute;
+    top: 6px;
+    font-size: 0.68rem;
+    pointer-events: none;
+  }
+
+  .legend.magic-l {
+    left: 8px;
+    color: var(--magic);
+  }
+
+  .legend.magitech-l {
+    left: 50%;
+    transform: translateX(-50%);
+    color: var(--magitech);
+  }
+
+  .legend.tech-l {
+    right: 8px;
+    color: var(--tech);
+  }
+
+  .zoom-controls {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .zoom-controls button {
+    width: 36px;
+    min-height: 36px;
+    padding: 0;
+    font-size: 1rem;
+    line-height: 1;
   }
 </style>

@@ -1,17 +1,28 @@
 <script lang="ts">
   import { RESOURCES } from '../content/resources';
+  import { WORKER } from '../content/workers';
+  import { idleWorkers } from '../engine/actions';
   import { game } from '../engine/state';
   import { formatNumber } from '../util/format';
+  import { theme, toggleTheme } from '../util/theme';
 
   const visible = $derived(RESOURCES.filter((r) => $game.unlockedResources.includes(r.id)));
 </script>
 
 <header>
   <span class="chip gold">🪙 {formatNumber(Math.floor($game.credits))}</span>
-  <span class="chip science">🔬 {formatNumber(Math.floor($game.researchPoints * 10) / 10)}</span>
+  <span class="chip science">{WORKER.icon} {idleWorkers($game)}/{$game.workers}</span>
   {#each visible as r (r.id)}
     <span class="chip">{r.icon} {formatNumber($game.resources[r.id] ?? 0)}</span>
   {/each}
+  <button
+    class="theme-toggle"
+    onclick={toggleTheme}
+    aria-label="Switch theme"
+    title={$theme === 'wood' ? 'Switch to industrial theme' : 'Switch to wood theme'}
+  >
+    {$theme === 'wood' ? '🏭' : '🪵'}
+  </button>
 </header>
 
 <style>
@@ -36,10 +47,18 @@
     padding: 6px 10px;
     background: var(--panel-2);
     border: 1px solid var(--border);
-    border-radius: 999px;
     font-size: 0.85rem;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
+  }
+
+  .theme-toggle {
+    flex: none;
+    margin-left: auto;
+    min-height: 0;
+    padding: 4px 8px;
+    font-size: 0.85rem;
+    line-height: 1;
   }
 
   .gold {

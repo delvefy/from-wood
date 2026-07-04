@@ -41,7 +41,6 @@
     min-height: 56px;
     background: none;
     border: none;
-    border-radius: 0;
     color: var(--muted);
   }
 

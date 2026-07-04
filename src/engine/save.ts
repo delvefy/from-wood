@@ -6,13 +6,14 @@ import { tick } from './tick';
 import { resetTickClock } from './actions';
 import type { GameState } from './types';
 
-const SAVE_KEY = 'from-wood-save-v1';
+const SAVE_KEY = 'from-wood-save-v2';
+const LEGACY_SAVE_KEYS = ['from-wood-save-v1'];
 export const OFFLINE_CAP_SECONDS = 8 * 3600;
 
 export interface OfflineReport {
   seconds: number;
   resourceGains: Record<string, number>;
-  researchGained: number;
+  techCompleted: string[];
 }
 
 export async function saveGame(): Promise<void> {
@@ -21,9 +22,10 @@ export async function saveGame(): Promise<void> {
   await idbSet(SAVE_KEY, JSON.parse(JSON.stringify(get(game))));
 }
 
-// Loads the save (if any), fast-forwards automated production for the time
-// away (capped), and returns a summary of what was gained.
+// Loads the save (if any), fast-forwards all timed work for the time away
+// (capped), and returns a summary of what was gained.
 export async function loadGame(): Promise<OfflineReport | null> {
+  for (const key of LEGACY_SAVE_KEYS) void idbDel(key);
   const saved = (await idbGet(SAVE_KEY)) as Partial<GameState> | undefined;
   if (!saved) return null;
 
@@ -34,12 +36,13 @@ export async function loadGame(): Promise<OfflineReport | null> {
     ...base,
     ...saved,
     resources: { ...base.resources, ...(saved.resources ?? {}) },
-    workers: { ...base.workers, ...(saved.workers ?? {}) },
-    harvesterAssignment: { ...(saved.harvesterAssignment ?? {}) },
+    gatherAssignment: { ...(saved.gatherAssignment ?? {}) },
+    gatherProgress: { ...(saved.gatherProgress ?? {}) },
+    craftJobs: { ...(saved.craftJobs ?? {}) },
     unlockedResources: union(base.unlockedResources, saved.unlockedResources),
     unlockedRecipes: union(base.unlockedRecipes, saved.unlockedRecipes),
     unlockedTech: union([], saved.unlockedTech),
-    unlockedWorkerTypes: union([], saved.unlockedWorkerTypes),
+    researchQueue: [...(saved.researchQueue ?? [])],
     multipliers: computeMultipliers(saved.unlockedTech ?? []),
   };
 
@@ -52,16 +55,16 @@ export async function loadGame(): Promise<OfflineReport | null> {
   let report: OfflineReport | null = null;
   if (elapsed >= 5) {
     const resourcesBefore = { ...s.resources };
-    const researchBefore = s.researchPoints;
+    const techBefore = new Set(s.unlockedTech);
     tick(s, elapsed);
     const resourceGains: Record<string, number> = {};
     for (const [id, value] of Object.entries(s.resources)) {
       const gain = value - (resourcesBefore[id] ?? 0);
       if (gain > 0.005) resourceGains[id] = gain;
     }
-    const researchGained = s.researchPoints - researchBefore;
-    if (Object.keys(resourceGains).length > 0 || researchGained > 0.005) {
-      report = { seconds: elapsed, resourceGains, researchGained };
+    const techCompleted = s.unlockedTech.filter((id) => !techBefore.has(id));
+    if (Object.keys(resourceGains).length > 0 || techCompleted.length > 0) {
+      report = { seconds: elapsed, resourceGains, techCompleted };
     }
   }
 

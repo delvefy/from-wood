@@ -2,31 +2,35 @@ import { TECH_BY_ID } from '../content/tech';
 import type { Multipliers, ResourceId, TechId } from './types';
 
 // Multipliers are pure functions of the unlocked tech set; recomputed on
-// tech purchase and on load so saves never store stale derived values.
+// research completion and on load so saves never store stale derived values.
+// Efficiency percents stack ADDITIVELY within each bucket (many tiny +1%
+// nodes), then convert to a multiplier once: 1 + total/100. Speed is never
+// affected — cycle/job durations are fixed by content.
 export function computeMultipliers(unlockedTech: TechId[]): Multipliers {
-  const m: Multipliers = {
-    harvestAll: 1,
-    harvestByResource: {},
-    craftSpeed: 1,
-    workerEfficiency: { harvester: 1, researcher: 1, crafter: 1 },
-  };
+  let gatherAllPct = 0;
+  const gatherPctByResource: Record<ResourceId, number> = {};
+  let craftPct = 0;
   for (const techId of unlockedTech) {
     const node = TECH_BY_ID[techId];
     if (!node) continue;
     for (const effect of node.effects) {
-      if (effect.kind === 'harvestMultiplier') {
-        if (effect.resource === 'all') m.harvestAll *= effect.factor;
-        else m.harvestByResource[effect.resource] = (m.harvestByResource[effect.resource] ?? 1) * effect.factor;
-      } else if (effect.kind === 'craftSpeedMultiplier') {
-        m.craftSpeed *= effect.factor;
-      } else if (effect.kind === 'workerEfficiencyMultiplier') {
-        m.workerEfficiency[effect.workerType] *= effect.factor;
+      if (effect.kind === 'gatherEfficiency') {
+        if (effect.resource === 'all') gatherAllPct += effect.percent;
+        else gatherPctByResource[effect.resource] = (gatherPctByResource[effect.resource] ?? 0) + effect.percent;
+      } else if (effect.kind === 'craftEfficiency') {
+        craftPct += effect.percent;
       }
     }
   }
-  return m;
+  return {
+    gatherAll: 1 + gatherAllPct / 100,
+    gatherByResource: Object.fromEntries(
+      Object.entries(gatherPctByResource).map(([id, pct]) => [id, 1 + pct / 100]),
+    ),
+    craftOutput: 1 + craftPct / 100,
+  };
 }
 
 export function harvestMultiplier(m: Multipliers, resourceId: ResourceId): number {
-  return m.harvestAll * (m.harvestByResource[resourceId] ?? 1);
+  return m.gatherAll * (m.gatherByResource[resourceId] ?? 1);
 }

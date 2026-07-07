@@ -6,7 +6,10 @@
 </script>
 
 <header>
-  <div class="total">Total Value: <strong>{formatCredits(totalValue($game))}</strong></div>
+  <div class="total">
+    <div>Total Value: <strong>{formatCredits(totalValue($game))}</strong></div>
+    <div class="hint">total price of everything you own</div>
+  </div>
   <button
     class="theme-toggle"
     onclick={toggleTheme}
@@ -39,6 +42,13 @@
     letter-spacing: 0.08em;
     color: var(--muted);
     font-variant-numeric: tabular-nums;
+  }
+
+  .total .hint {
+    font-size: 0.62rem;
+    letter-spacing: 0.04em;
+    text-transform: none;
+    opacity: 0.8;
   }
 
   .total strong {

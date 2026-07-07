@@ -189,6 +189,21 @@ export function cancelResearch(techId: TechId): void {
 
 // ---- Economy -------------------------------------------------------------------
 
+export function sellEverything(): void {
+  game.update((s) => {
+    let gained = 0;
+    for (const id of s.unlockedResources) {
+      const def = RESOURCE_BY_ID[id];
+      const n = Math.floor(s.resources[id] ?? 0);
+      if (!def || n <= 0) continue;
+      s.resources[id] = (s.resources[id] ?? 0) - n;
+      gained += n * def.baseSellPrice;
+    }
+    if (gained <= 0) return s;
+    return { ...s, credits: s.credits + gained };
+  });
+}
+
 export function sellResource(resourceId: ResourceId, amount: number | 'all'): void {
   game.update((s) => {
     const def = RESOURCE_BY_ID[resourceId];

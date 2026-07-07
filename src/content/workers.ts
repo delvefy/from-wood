@@ -12,12 +12,12 @@ export const WORKER: WorkerConfig = {
   startingCount: 1,
 };
 
-// Crafters start 10× more expensive than gather workers.
+// Crafters start at the same price as gather workers.
 export const CRAFTER: WorkerConfig = {
   name: 'Crafter',
   icon: '🧑‍🏭',
   description: 'Each crafter fills one craft slot and can be assigned to a recipe.',
-  hireCost: 50,
+  hireCost: 5,
   hireCostGrowth: 1.15,
   startingCount: 1,
 };

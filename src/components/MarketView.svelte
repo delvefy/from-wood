@@ -8,6 +8,7 @@
     idleCrafters,
     idleWorkers,
     nextHireCost,
+    sellEverything,
     sellResource,
   } from '../engine/actions';
   import { hardReset } from '../engine/save';
@@ -36,6 +37,16 @@
     })).filter((g) => g.items.length > 0),
   );
 
+  const inventoryValue = $derived(
+    RESOURCES.reduce(
+      (sum, r) =>
+        $game.unlockedResources.includes(r.id)
+          ? sum + Math.floor($game.resources[r.id] ?? 0) * r.baseSellPrice
+          : sum,
+      0,
+    ),
+  );
+
   const hireRows = $derived([
     {
       config: WORKER,
@@ -58,7 +69,12 @@
   }
 </script>
 
-<div class="balance">Credits: <strong>{formatCredits($game.credits)}</strong></div>
+<div class="balance">
+  <span>Credits: <strong>{formatCredits($game.credits)}</strong></span>
+  <button class="sell-all" disabled={inventoryValue <= 0} onclick={sellEverything}>
+    Sell everything{inventoryValue > 0 ? ` +${formatCredits(inventoryValue)}` : ''}
+  </button>
+</div>
 
 <h2>Sell</h2>
 <div class="list">
@@ -110,6 +126,10 @@
 
 <style>
   .balance {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     padding: 10px 12px;
     background: var(--panel);
     border: 1px solid var(--gold);
@@ -122,6 +142,15 @@
     color: var(--gold);
     font-size: 1.05rem;
     font-variant-numeric: tabular-nums;
+  }
+
+  .sell-all {
+    background: var(--grad-primary);
+    border: none;
+    color: #fff;
+    font-weight: 600;
+    padding: 0 14px;
+    white-space: nowrap;
   }
 
   .list {

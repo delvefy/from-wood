@@ -10,15 +10,26 @@ import type { ResourceDef } from '../engine/types';
 // items sell for ~1.4× the value of their inputs. Tuned by feel, not formula.
 
 // helpers keep the 200+ entry catalog readable: one line per entry.
+// Every raw takes the same time to gather; progression comes from prices, not speed.
+const GATHER_TIME_SECONDS = 30;
+
 const raw = (
   id: string,
   name: string,
   icon: string,
   tier: number,
   baseSellPrice: number,
-  extractTimeSeconds: number,
   unlockedByDefault = false,
-): ResourceDef => ({ id, name, icon, tier, baseSellPrice, unlockedByDefault, harvestAmount: 1, extractTimeSeconds });
+): ResourceDef => ({
+  id,
+  name,
+  icon,
+  tier,
+  baseSellPrice,
+  unlockedByDefault,
+  harvestAmount: 1,
+  extractTimeSeconds: GATHER_TIME_SECONDS,
+});
 
 const item = (id: string, name: string, icon: string, tier: number, baseSellPrice: number): ResourceDef => ({
   id,
@@ -33,26 +44,26 @@ const item = (id: string, name: string, icon: string, tier: number, baseSellPric
 
 export const RESOURCES: ResourceDef[] = [
   // ---- Gatherable raws (20) --------------------------------------------------
-  raw('wood', 'Wood', '🪵', 0, 1, 60, true),
-  raw('water', 'Water', '💧', 0, 1, 60, true),
-  raw('stone', 'Stone', '🪨', 1, 3, 60),
-  raw('fiber', 'Fiber', '🌾', 1, 3, 60),
-  raw('clay', 'Clay', '🟤', 2, 8, 90),
-  raw('copper_ore', 'Copper Ore', '🟠', 2, 8, 90),
-  raw('iron_ore', 'Iron Ore', '🔩', 2, 10, 90),
-  raw('herbs', 'Herbs', '🌿', 2, 9, 90),
-  raw('resin', 'Resin', '🍯', 2, 9, 90),
-  raw('coal', 'Coal', '⚫', 3, 15, 120),
-  raw('salt', 'Salt', '🧂', 3, 18, 120),
-  raw('amber', 'Amber', '🔶', 3, 22, 120),
-  raw('quartz_sand', 'Quartz Sand', '⏳', 4, 35, 180),
-  raw('sulfur', 'Sulfur', '🟡', 4, 40, 180),
-  raw('glowspore', 'Glowspore', '🍄', 4, 45, 180),
-  raw('moon_dew', 'Moon Dew', '🌙', 4, 50, 180),
-  raw('crude_oil', 'Crude Oil', '🛢️', 5, 120, 300),
-  raw('mana_crystal', 'Mana Crystal', '🔮', 5, 130, 300),
-  raw('voltite', 'Voltite', '⚡', 6, 320, 600),
-  raw('ley_essence', 'Ley Essence', '✨', 6, 340, 600),
+  raw('wood', 'Wood', '🪵', 0, 1, true),
+  raw('water', 'Water', '💧', 0, 1, true),
+  raw('stone', 'Stone', '🪨', 1, 3),
+  raw('fiber', 'Fiber', '🌾', 1, 3),
+  raw('clay', 'Clay', '🟤', 2, 8),
+  raw('copper_ore', 'Copper Ore', '🟠', 2, 8),
+  raw('iron_ore', 'Iron Ore', '🔩', 2, 10),
+  raw('herbs', 'Herbs', '🌿', 2, 9),
+  raw('resin', 'Resin', '🍯', 2, 9),
+  raw('coal', 'Coal', '⚫', 3, 15),
+  raw('salt', 'Salt', '🧂', 3, 18),
+  raw('amber', 'Amber', '🔶', 3, 22),
+  raw('quartz_sand', 'Quartz Sand', '⏳', 4, 35),
+  raw('sulfur', 'Sulfur', '🟡', 4, 40),
+  raw('glowspore', 'Glowspore', '🍄', 4, 45),
+  raw('moon_dew', 'Moon Dew', '🌙', 4, 50),
+  raw('crude_oil', 'Crude Oil', '🛢️', 5, 120),
+  raw('mana_crystal', 'Mana Crystal', '🔮', 5, 130),
+  raw('voltite', 'Voltite', '⚡', 6, 320),
+  raw('ley_essence', 'Ley Essence', '✨', 6, 340),
 
   // ---- Materials (refined; tier ~= progression order) -------------------------
   item('plank', 'Plank', '🟫', 1, 4),

@@ -3,6 +3,7 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  base: '/from-wood/',
   plugins: [
     svelte(),
     VitePWA({
@@ -16,7 +17,8 @@ export default defineConfig({
         background_color: '#12160f',
         display: 'standalone',
         orientation: 'portrait',
-        start_url: '/',
+        start_url: '/from-wood/',
+        scope: '/from-wood/',
         icons: [
           { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },

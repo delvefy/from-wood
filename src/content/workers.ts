@@ -7,7 +7,7 @@ export const WORKER: WorkerConfig = {
   name: 'Worker',
   icon: '👷',
   description: 'Each worker fills one gather slot and can be assigned to a resource.',
-  hireCost: 50,
+  hireCost: 5,
   hireCostGrowth: 1.15,
   startingCount: 1,
 };
@@ -17,7 +17,7 @@ export const CRAFTER: WorkerConfig = {
   name: 'Crafter',
   icon: '🧑‍🏭',
   description: 'Each crafter fills one craft slot and can be assigned to a recipe.',
-  hireCost: 500,
+  hireCost: 50,
   hireCostGrowth: 1.15,
   startingCount: 1,
 };

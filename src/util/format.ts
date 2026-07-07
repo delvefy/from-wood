@@ -8,6 +8,10 @@ export function formatNumber(n: number): string {
   return (Math.floor(n * 10) / 10).toFixed(1);
 }
 
+export function formatCredits(n: number): string {
+  return '$' + formatNumber(Math.floor(n));
+}
+
 function scaled(v: number): string {
   return String(Math.abs(v) >= 100 ? Math.floor(v) : Math.floor(v * 10) / 10);
 }

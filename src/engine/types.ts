@@ -89,10 +89,11 @@ export interface GameState {
   workers: number; // gather slots owned (1 free at start, more hired with credits)
   gatherAssignment: Record<ResourceId, number>; // workers allocated per resource
   gatherProgress: Record<ResourceId, number>; // seconds into the current gather cycle
+  crafters: number; // craft slots owned (1 free at start, more hired with credits)
+  craftAssignment: Record<string, number>; // crafters allocated per recipe
+  craftProgress: Record<string, number>; // seconds into the current craft cycle
   researchQueue: TechId[]; // head is being researched; one slot, rest wait
   researchProgress: number; // seconds into the queue head
-  craftJobs: Record<string, number>; // recipeId -> seconds of progress (one job per recipe)
-  craftRepeat: Record<string, number>; // recipeId -> queued repeat runs after the current job (inputs paid per run)
   multipliers: Multipliers; // derived from tech, recomputed on unlock/load
   lastSeen: number; // epoch ms, for offline progress
 }

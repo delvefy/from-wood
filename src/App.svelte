@@ -98,7 +98,8 @@
   .overlay {
     position: fixed;
     inset: 0;
-    background: rgb(0 0 0 / 60%);
+    background: rgb(0 0 0 / 55%);
+    backdrop-filter: blur(3px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -108,7 +109,11 @@
 
   .modal {
     background: var(--panel);
-    border: 1px solid var(--border);
+    border: 1px solid color-mix(in srgb, var(--magic) 40%, var(--border));
+    border-radius: var(--radius);
+    box-shadow:
+      var(--shadow),
+      0 0 24px color-mix(in srgb, var(--magic) 25%, transparent);
     padding: 20px;
     width: min(92vw, 360px);
   }
@@ -128,8 +133,10 @@
 
   .primary {
     width: 100%;
-    background: var(--accent-dark);
-    border-color: var(--accent-dark);
+    background: var(--grad-primary);
+    border: none;
+    color: #fff;
     font-weight: 600;
+    box-shadow: 0 0 10px color-mix(in srgb, var(--magic) 35%, transparent);
   }
 </style>

@@ -117,6 +117,20 @@ for (const res of RESOURCES) {
   }
 }
 
+// ---- Tree layout -----------------------------------------------------------------
+// Nodes render ~108x90px centered on (x, y); generated paths/clusters can
+// collide when specs move. Warn on any pair closer than 100px.
+for (let i = 0; i < TECH.length; i++) {
+  for (let j = i + 1; j < TECH.length; j++) {
+    const a = TECH[i];
+    const b = TECH[j];
+    const d = Math.hypot(a.x - b.x, a.y - b.y);
+    if (d < 100) {
+      warnings.push(`tech nodes overlap: ${a.id} and ${b.id} are ${Math.round(d)}px apart`);
+    }
+  }
+}
+
 // ---- Report --------------------------------------------------------------------------
 console.log(`content: ${RESOURCES.length} resources, ${RECIPES.length} recipes, ${TECH.length} tech nodes`);
 for (const w of warnings) console.warn(`warn: ${w}`);

@@ -3,9 +3,15 @@
   import { CATEGORY_ORDER, RECIPES } from '../content/recipes';
   import { RESOURCE_BY_ID } from '../content/resources';
   import { TECH } from '../content/tech';
-  import { affordableRuns, cancelCraftQueue, startCraft } from '../engine/actions';
+  import { CRAFTER } from '../content/workers';
+  import {
+    assignAllCrafters,
+    assignCrafter,
+    idleCrafters,
+    unassignAllCrafters,
+  } from '../engine/actions';
   import { game } from '../engine/state';
-  import { canAfford } from '../engine/tick';
+  import { collapsed, isCollapsed, toggleCollapsed } from '../util/collapse';
   import { formatNumber } from '../util/format';
   import { rawCost } from '../util/rawCost';
 
@@ -33,15 +39,8 @@
     }).filter((g) => g.unlocked.length > 0 || g.locked.length > 0),
   );
   const anyUnlocked = $derived(groups.some((g) => g.unlocked.length > 0));
-
-  let collapsed = $state(new Set<string>());
-
-  function toggle(id: string) {
-    const next = new Set(collapsed);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    collapsed = next;
-  }
+  const idle = $derived(idleCrafters($game));
+  let manage = $state(false);
 
   // Raw line is static per recipe; shown only for recipes with crafted inputs.
   function rawLine(recipeId: string): string {
@@ -59,24 +58,32 @@
 
 {#if !anyUnlocked}
   <p class="muted empty">No recipes yet — research <strong>Woodworking</strong> to unlock crafting.</p>
+{:else}
+  <button class="slots" onclick={() => (manage = !manage)}>
+    {CRAFTER.icon} Crafters: <strong>{idle}</strong> idle / {$game.crafters} total
+    <span class="muted">— tap to manage {manage ? '▾' : '▸'}</span>
+  </button>
+  {#if manage}
+    <div class="manage">
+      <button onclick={unassignAllCrafters}>Unassign all</button>
+      <button class="fill" disabled={idle <= 0} onclick={assignAllCrafters}>Assign all evenly</button>
+    </div>
+  {/if}
 {/if}
 <div class="groups">
   {#each groups as group (group.id)}
-    <button class="group-head" onclick={() => toggle(group.id)}>
+    <button class="group-head" onclick={() => toggleCollapsed('craft', group.id)}>
       <span>{group.icon} {group.label}</span>
       <span class="muted">
         {group.unlocked.length}/{group.unlocked.length + group.locked.length}
-        {collapsed.has(group.id) ? '▸' : '▾'}
+        {isCollapsed($collapsed, 'craft', group.id) ? '▸' : '▾'}
       </span>
     </button>
-    {#if !collapsed.has(group.id)}
+    {#if !isCollapsed($collapsed, 'craft', group.id)}
       <div class="list">
         {#each group.unlocked as recipe (recipe.id)}
-            {@const job = $game.craftJobs[recipe.id]}
-            {@const running = job !== undefined}
-            {@const queued = $game.craftRepeat[recipe.id] ?? 0}
+            {@const assigned = $game.craftAssignment[recipe.id] ?? 0}
             {@const duration = recipe.craftTimeSeconds}
-            {@const affordable = affordableRuns($game, recipe.id)}
             {@const raw = rawLine(recipe.id)}
             <div class="card">
               <div class="head">
@@ -100,31 +107,25 @@
               {#if raw}
                 <div class="raw muted">raw ≈ {raw}</div>
               {/if}
-              {#if running}
-                <div class="progress">
-                  <ProgressBar value={job} max={duration} />
-                  <span class="left muted">{Math.ceil(duration - job)}s</span>
-                </div>
-                <div class="queue">
-                  {#if queued > 0}
-                    <span class="muted">+{queued} queued</span>
-                    <button class="cancel" onclick={() => cancelCraftQueue(recipe.id)}>✕</button>
+              <div class="controls">
+                <button disabled={assigned <= 0} onclick={() => assignCrafter(recipe.id, -1)}>−</button>
+                <span class="count">{CRAFTER.icon} {assigned}</span>
+                <button disabled={idle <= 0} onclick={() => assignCrafter(recipe.id, 1)}>+</button>
+                <span class="rate muted">
+                  {#if assigned > 0}
+                    {#each Object.entries(recipe.outputs) as [id, n] (id)}
+                      +{RESOURCE_BY_ID[id]?.icon}{formatNumber(assigned * n * $game.multipliers.craftOutput)}
+                    {/each}
+                    / {formatNumber(duration)}s
+                  {:else}
+                    assign a crafter
                   {/if}
-                  <button
-                    class="more"
-                    disabled={affordable < 1}
-                    onclick={() => startCraft(recipe.id, 1)}
-                  >
-                    +1
-                  </button>
-                </div>
-              {:else}
-                <div class="buttons">
-                  <button class="craft-btn" disabled={!canAfford($game, recipe.inputs)} onclick={() => startCraft(recipe.id, 1)}>
-                    Craft
-                  </button>
-                  <button disabled={affordable < 2} onclick={() => startCraft(recipe.id, 5)}>×5</button>
-                  <button disabled={affordable < 2} onclick={() => startCraft(recipe.id, 25)}>×25</button>
+                </span>
+              </div>
+              {#if assigned > 0}
+                <div class="progress">
+                  <ProgressBar value={$game.craftProgress[recipe.id] ?? 0} max={duration} />
+                  <span class="left muted">{Math.ceil(duration - ($game.craftProgress[recipe.id] ?? 0))}s</span>
                 </div>
               {/if}
             </div>
@@ -157,6 +158,41 @@
     padding: 24px 12px;
   }
 
+  .slots {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    font-size: 0.9rem;
+  }
+
+  .slots .muted {
+    font-size: 0.75rem;
+  }
+
+  .manage {
+    display: flex;
+    gap: 8px;
+    margin: -2px 0 10px;
+  }
+
+  .manage button {
+    flex: 1;
+    font-size: 0.85rem;
+  }
+
+  .manage .fill {
+    background: var(--grad-primary);
+    border: none;
+    color: #fff;
+    font-weight: 600;
+  }
+
   .groups {
     display: flex;
     flex-direction: column;
@@ -169,8 +205,13 @@
     align-items: center;
     width: 100%;
     padding: 8px 12px;
-    background: var(--panel-2);
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--magic) 12%, var(--panel-2)),
+      color-mix(in srgb, var(--tech) 12%, var(--panel-2))
+    );
     border: 1px solid var(--border);
+    border-radius: var(--radius);
     font-weight: 600;
     text-align: left;
   }
@@ -188,6 +229,8 @@
     padding: 12px;
     background: var(--panel);
     border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
   }
 
   .head {
@@ -213,8 +256,9 @@
   }
 
   .item {
-    padding: 3px 7px;
+    padding: 3px 9px;
     background: var(--panel-2);
+    border-radius: 999px;
     white-space: nowrap;
   }
 
@@ -228,6 +272,7 @@
 
   .item.out {
     border: 1px solid var(--accent-dark);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--accent-dark) 35%, transparent);
   }
 
   .arrow {
@@ -238,20 +283,26 @@
     font-size: 0.75rem;
   }
 
-  .buttons {
+  .controls {
     display: flex;
-    gap: 6px;
+    align-items: center;
+    gap: 8px;
   }
 
-  .buttons button {
+  .controls button {
     min-width: 44px;
+    padding: 0 8px;
   }
 
-  .craft-btn {
-    flex: 1;
-    background: var(--accent-dark);
-    border-color: var(--accent-dark);
-    font-weight: 600;
+  .count {
+    min-width: 4ch;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .rate {
+    margin-left: auto;
+    font-size: 0.75rem;
   }
 
   .progress {
@@ -269,26 +320,6 @@
     font-variant-numeric: tabular-nums;
     min-width: 3.5ch;
     text-align: right;
-  }
-
-  .queue {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.8rem;
-  }
-
-  .queue .more {
-    margin-left: auto;
-    min-width: 44px;
-  }
-
-  .queue .cancel {
-    min-width: 32px;
-    padding: 0 6px;
-    color: var(--danger);
-    border-color: var(--danger);
-    background: none;
   }
 
   .card.dim {
@@ -309,8 +340,9 @@
   }
 
   .branch {
-    padding: 1px 6px;
+    padding: 1px 8px;
     border: 1px solid var(--border);
+    border-radius: 999px;
     font-size: 0.68rem;
   }
 

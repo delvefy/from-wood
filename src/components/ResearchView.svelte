@@ -14,7 +14,7 @@
   let vh = $state(0);
   let viewportEl: HTMLDivElement | undefined = $state();
 
-  const MIN_ZOOM = 0.3;
+  const MIN_ZOOM = 0.1;
   const MAX_ZOOM = 2.5;
 
   function clampZoom(z: number): number {
@@ -250,6 +250,8 @@
     padding: 10px 12px;
     background: var(--panel);
     border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
     font-size: 0.9rem;
   }
 
@@ -267,7 +269,8 @@
 
   .qchip {
     min-height: 32px;
-    padding: 2px 10px;
+    padding: 2px 12px;
+    border-radius: 999px;
     font-size: 0.75rem;
     color: var(--muted);
   }
@@ -278,7 +281,19 @@
     position: relative;
     overflow: hidden;
     border: 1px solid var(--border);
-    background: var(--bg);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    /* faint circuit-dot grid over the arcane backdrop */
+    background:
+      radial-gradient(
+          circle,
+          color-mix(in srgb, var(--border) 60%, transparent) 1px,
+          transparent 1.5px
+        )
+        0 0 / 26px 26px,
+      radial-gradient(500px 320px at 0% 0%, var(--bg-glow-1), transparent 70%),
+      radial-gradient(500px 320px at 100% 100%, var(--bg-glow-2), transparent 70%),
+      var(--bg);
     touch-action: none;
     cursor: grab;
   }
@@ -302,7 +317,12 @@
   .edge {
     stroke: var(--border);
     stroke-width: 2;
+    stroke-linecap: round;
     vector-effect: non-scaling-stroke;
+  }
+
+  .edge.done {
+    stroke-width: 3;
   }
 
   .edge.done.magic {
@@ -325,17 +345,20 @@
     flex-direction: column;
     justify-content: center;
     gap: 3px;
-    padding: 6px;
+    padding: 8px 6px 6px;
     background: var(--panel);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
     text-align: center;
   }
 
   .node.major {
     width: 132px;
-    padding: 10px 8px;
+    padding: 12px 8px 10px;
+    border-radius: var(--radius);
   }
 
-  /* branch stripe along the top edge — flat, no glow */
+  /* branch stripe along the top edge */
   .node::before {
     content: '';
     position: absolute;
@@ -367,15 +390,21 @@
 
   .node.owned {
     border-color: var(--accent-dark);
-    background: var(--panel-2);
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent-dark) 14%, var(--panel-2)),
+      var(--panel-2)
+    );
   }
 
   .node.available {
     border-color: var(--accent);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 40%, transparent);
   }
 
   .node.active {
     border-color: var(--science);
+    box-shadow: 0 0 14px color-mix(in srgb, var(--science) 50%, transparent);
   }
 
   .node.queued {
@@ -406,8 +435,9 @@
 
   .pitem {
     font-size: 0.65rem;
-    padding: 1px 5px;
+    padding: 1px 6px;
     background: var(--panel-2);
+    border-radius: 999px;
     white-space: nowrap;
   }
 

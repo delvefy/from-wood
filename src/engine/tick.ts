@@ -16,11 +16,20 @@ export function grantOutputs(s: GameState, outputs: Record<ResourceId, number>):
   for (const [id, n] of Object.entries(outputs)) s.resources[id] = (s.resources[id] ?? 0) + n;
 }
 
-export function scaleOutputs(
-  outputs: Record<ResourceId, number>,
+export function scaleAmounts(
+  amounts: Record<ResourceId, number>,
   factor: number,
 ): Record<ResourceId, number> {
-  return Object.fromEntries(Object.entries(outputs).map(([id, n]) => [id, n * factor]));
+  return Object.fromEntries(Object.entries(amounts).map(([id, n]) => [id, n * factor]));
+}
+
+// How many runs of a recipe the current stock can pay for (Infinity if free).
+export function affordableRuns(s: GameState, inputs: Record<ResourceId, number>): number {
+  let runs = Infinity;
+  for (const [id, n] of Object.entries(inputs)) {
+    runs = Math.min(runs, Math.floor((s.resources[id] ?? 0) / n));
+  }
+  return runs;
 }
 
 export function pushUnique<T>(arr: T[], value: T): void {
@@ -93,35 +102,28 @@ export function tick(s: GameState, seconds: number): GameState {
     completeResearch(s, node);
   }
 
-  // Craft jobs: one per recipe, inputs already consumed at start; outputs land
-  // when the bar fills, scaled by craft efficiency. Queued repeat runs pay
-  // their inputs as each run starts; an unaffordable repeat drops the queue.
-  // The loop handles multiple completions per tick for offline fast-forward.
-  for (const [recipeId, progress] of Object.entries(s.craftJobs)) {
+  // Crafting mirrors gathering: each recipe with assigned crafters runs a
+  // shared cycle bar. Every completed cycle runs up to one craft per crafter,
+  // limited by what the input stock can pay for; inputs are spent and outputs
+  // (scaled by craft efficiency) land at cycle completion.
+  for (const [recipeId, assigned] of Object.entries(s.craftAssignment)) {
     const recipe = RECIPE_BY_ID[recipeId];
-    if (!recipe) {
-      delete s.craftJobs[recipeId];
-      delete s.craftRepeat[recipeId];
+    if (!recipe || assigned <= 0 || !s.unlockedRecipes.includes(recipeId)) {
+      if (s.craftProgress[recipeId]) s.craftProgress[recipeId] = 0;
       continue;
     }
-    const duration = recipe.craftTimeSeconds;
-    let next = progress + seconds;
-    let running = true;
-    while (running && next >= duration) {
-      grantOutputs(s, scaleOutputs(recipe.outputs, s.multipliers.craftOutput));
-      next -= duration;
-      const repeat = s.craftRepeat[recipeId] ?? 0;
-      if (repeat > 0 && canAfford(s, recipe.inputs)) {
-        spendInputs(s, recipe.inputs);
-        if (repeat === 1) delete s.craftRepeat[recipeId];
-        else s.craftRepeat[recipeId] = repeat - 1;
-      } else {
-        running = false;
-        delete s.craftRepeat[recipeId];
-      }
+    const cycle = recipe.craftTimeSeconds;
+    const progress = (s.craftProgress[recipeId] ?? 0) + seconds;
+    // Loop per cycle (not per tick) so offline fast-forward respects the stock
+    // available at each completion. Stock only shrinks within this loop, so a
+    // zero-run cycle means every later cycle is zero too.
+    for (let i = Math.floor(progress / cycle); i > 0; i--) {
+      const runs = Math.min(assigned, affordableRuns(s, recipe.inputs));
+      if (runs <= 0) break;
+      spendInputs(s, scaleAmounts(recipe.inputs, runs));
+      grantOutputs(s, scaleAmounts(recipe.outputs, runs * s.multipliers.craftOutput));
     }
-    if (running) s.craftJobs[recipeId] = next;
-    else delete s.craftJobs[recipeId];
+    s.craftProgress[recipeId] = progress % cycle;
   }
 
   return s;

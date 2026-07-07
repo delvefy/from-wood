@@ -1,38 +1,51 @@
-/* Theme: wood — pale, warm, light */
+/* Theme: wood — bright fantasy parchment with vivid arcane accents */
 :root,
 :root[data-theme='wood'] {
-  --bg: #ede3cf;
-  --panel: #f7f0e0;
-  --panel-2: #e3d5b8;
-  --border: #c4b190;
-  --text: #3b2f21;
-  --muted: #8c7c62;
-  --accent: #6d8f3a;
-  --accent-dark: #a9c17e;
-  --danger: #b0442c;
-  --gold: #a1761c;
-  --science: #2c7799;
-  --magic: #7d4fa0;
-  --tech: #33698c;
-  --magitech: #a1761c;
+  --bg: #f0e4c9;
+  --bg-glow-1: rgb(139 63 214 / 16%);
+  --bg-glow-2: rgb(24 141 199 / 16%);
+  --panel: #fbf4e0;
+  --panel-2: #edddb8;
+  --border: #d0b88a;
+  --text: #3b2d1f;
+  --muted: #8a7758;
+  --accent: #1f9d5f;
+  --accent-dark: #9a72d8;
+  --danger: #d2482b;
+  --gold: #b07f14;
+  --science: #1878b8;
+  --magic: #8b3fd6;
+  --tech: #1878b8;
+  --magitech: #c98a10;
+  --shadow: 0 2px 10px rgb(96 66 18 / 14%);
+  --grad-primary: linear-gradient(135deg, #8b3fd6, #1878b8);
 }
 
-/* Theme: industrial — dark, cold, blue */
+/* Theme: industrial — deep arcane night, neon magic + tech */
 :root[data-theme='industrial'] {
-  --bg: #0d131b;
-  --panel: #141c27;
-  --panel-2: #1c2735;
-  --border: #2e3e54;
-  --text: #d9e3ef;
-  --muted: #7d90a8;
-  --accent: #58a6d6;
-  --accent-dark: #1e4763;
-  --danger: #e0654f;
-  --gold: #d9b04c;
-  --science: #6fd1c3;
-  --magic: #a988e0;
-  --tech: #58a6d6;
-  --magitech: #d9b04c;
+  --bg: #0c0a1e;
+  --bg-glow-1: rgb(168 85 247 / 20%);
+  --bg-glow-2: rgb(34 211 238 / 14%);
+  --panel: #171432;
+  --panel-2: #242050;
+  --border: #3d3878;
+  --text: #e9e7ff;
+  --muted: #938fc9;
+  --accent: #3ee6c4;
+  --accent-dark: #6d4fd0;
+  --danger: #ff5d73;
+  --gold: #ffc94d;
+  --science: #4dc9ff;
+  --magic: #c774ff;
+  --tech: #4dd2ff;
+  --magitech: #ffc94d;
+  --shadow: 0 4px 16px rgb(0 0 0 / 45%);
+  --grad-primary: linear-gradient(135deg, #a855f7, #22d3ee);
+}
+
+:root {
+  --radius: 14px;
+  --radius-sm: 9px;
 }
 
 * {
@@ -47,8 +60,13 @@ body {
   height: 100%;
 }
 
+/* Soft magic (top-left) and tech (bottom-right) auras behind everything. */
 body {
-  background: var(--bg);
+  background:
+    radial-gradient(620px 420px at 10% -4%, var(--bg-glow-1), transparent 70%),
+    radial-gradient(720px 520px at 104% 106%, var(--bg-glow-2), transparent 70%),
+    var(--bg);
+  background-attachment: fixed;
   color: var(--text);
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-size: clamp(14px, 3.8vw, 16px);
@@ -68,9 +86,17 @@ button {
   color: inherit;
   border: 1px solid var(--border);
   background: var(--panel-2);
-  border-radius: 0;
+  border-radius: var(--radius-sm);
   min-height: 44px;
   cursor: pointer;
+  transition:
+    transform 0.08s ease,
+    box-shadow 0.15s ease,
+    border-color 0.15s ease;
+}
+
+button:not(:disabled):active {
+  transform: scale(0.95);
 }
 
 button:disabled {
@@ -79,8 +105,19 @@ button:disabled {
 }
 
 h2 {
-  font-size: 1.05rem;
-  margin: 18px 0 8px;
+  font-size: 0.85rem;
+  margin: 20px 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+h2::before {
+  content: '✦ ';
+  background: var(--grad-primary);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .muted {

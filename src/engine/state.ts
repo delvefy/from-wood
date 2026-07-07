@@ -1,7 +1,7 @@
 import { writable } from 'svelte/store';
 import { RESOURCES } from '../content/resources';
 import { RECIPES } from '../content/recipes';
-import { WORKER } from '../content/workers';
+import { CRAFTER, WORKER } from '../content/workers';
 import { computeMultipliers } from './multipliers';
 import type { GameState } from './types';
 
@@ -17,10 +17,11 @@ export function createInitialState(): GameState {
     workers: WORKER.startingCount,
     gatherAssignment: {},
     gatherProgress: {},
+    crafters: CRAFTER.startingCount,
+    craftAssignment: {},
+    craftProgress: {},
     researchQueue: [],
     researchProgress: 0,
-    craftJobs: {},
-    craftRepeat: {},
     multipliers: computeMultipliers([]),
     lastSeen: Date.now(),
   };

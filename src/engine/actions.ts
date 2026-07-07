@@ -1,10 +1,10 @@
-import { RECIPE_BY_ID } from '../content/recipes';
-import { RESOURCE_BY_ID } from '../content/resources';
+import { CATEGORY_ORDER, RECIPES, RECIPE_BY_ID } from '../content/recipes';
+import { RESOURCES, RESOURCE_BY_ID } from '../content/resources';
 import { TECH_BY_ID } from '../content/tech';
-import { WORKER } from '../content/workers';
+import { CRAFTER, WORKER } from '../content/workers';
 import { game } from './state';
 import { canAfford, grantOutputs, spendInputs, tick } from './tick';
-import type { GameState, ResourceId, TechId } from './types';
+import type { GameState, ResourceId, TechId, WorkerConfig } from './types';
 
 // ---- Game loop -------------------------------------------------------------
 
@@ -47,59 +47,97 @@ export function assignWorker(resourceId: ResourceId, delta: number): void {
   });
 }
 
+// Distributes `idle` workers over `targets` (in display order): each goes to
+// the first target with the lowest count, so the spread stays as even as
+// possible with the remainder landing top-to-bottom.
+function distributeIdle(
+  targets: string[],
+  assignment: Record<string, number>,
+  idle: number,
+): Record<string, number> {
+  const next = { ...assignment };
+  while (idle-- > 0) {
+    let best = targets[0];
+    for (const id of targets) {
+      if ((next[id] ?? 0) < (next[best] ?? 0)) best = id;
+    }
+    next[best] = (next[best] ?? 0) + 1;
+  }
+  return next;
+}
+
+export function unassignAllWorkers(): void {
+  game.update((s) => ({ ...s, gatherAssignment: {} }));
+}
+
+export function assignAllWorkers(): void {
+  game.update((s) => {
+    const targets = RESOURCES.filter(
+      (r) => r.harvestAmount > 0 && s.unlockedResources.includes(r.id),
+    ).map((r) => r.id);
+    const idle = idleWorkers(s);
+    if (targets.length === 0 || idle <= 0) return s;
+    return { ...s, gatherAssignment: distributeIdle(targets, s.gatherAssignment, idle) };
+  });
+}
+
 // Hired workers = owned minus the free starting slots; cost scales with those.
-export function nextHireCost(workersOwned: number): number {
-  const hired = Math.max(0, workersOwned - WORKER.startingCount);
-  return Math.ceil(WORKER.hireCost * WORKER.hireCostGrowth ** hired);
+export function nextHireCost(config: WorkerConfig, owned: number): number {
+  const hired = Math.max(0, owned - config.startingCount);
+  return Math.ceil(config.hireCost * config.hireCostGrowth ** hired);
 }
 
 export function hireWorker(): void {
   game.update((s) => {
-    const cost = nextHireCost(s.workers);
+    const cost = nextHireCost(WORKER, s.workers);
     if (s.credits < cost) return s;
     return { ...s, credits: s.credits - cost, workers: s.workers + 1 };
   });
 }
 
-// ---- Crafting ----------------------------------------------------------------
+// ---- Crafters / craft slots ----------------------------------------------------
 
-// Starts a craft, or queues extra runs behind the running job. Inputs are paid
-// per run (the first immediately, the rest as each run starts), so cancelling
-// the queue never needs a refund.
-export function startCraft(recipeId: string, times = 1): void {
+export function assignedCrafters(s: GameState): number {
+  return Object.values(s.craftAssignment).reduce((sum, n) => sum + n, 0);
+}
+
+export function idleCrafters(s: GameState): number {
+  return s.crafters - assignedCrafters(s);
+}
+
+export function assignCrafter(recipeId: string, delta: number): void {
   game.update((s) => {
-    const recipe = RECIPE_BY_ID[recipeId];
-    if (!recipe || !s.unlockedRecipes.includes(recipeId) || times < 1) return s;
-    if (recipeId in s.craftJobs) {
-      // already running: just extend the repeat queue
-      s.craftRepeat = { ...s.craftRepeat, [recipeId]: (s.craftRepeat[recipeId] ?? 0) + times };
-      return { ...s };
-    }
-    if (!canAfford(s, recipe.inputs)) return s;
-    spendInputs(s, recipe.inputs);
-    s.craftJobs = { ...s.craftJobs, [recipeId]: 0 };
-    if (times > 1) s.craftRepeat = { ...s.craftRepeat, [recipeId]: times - 1 };
+    if (!RECIPE_BY_ID[recipeId] || !s.unlockedRecipes.includes(recipeId)) return s;
+    const current = s.craftAssignment[recipeId] ?? 0;
+    const next = Math.max(0, Math.min(current + delta, current + idleCrafters(s)));
+    if (next === current) return s;
+    s.craftAssignment = { ...s.craftAssignment, [recipeId]: next };
     return { ...s };
   });
 }
 
-export function cancelCraftQueue(recipeId: string): void {
+export function unassignAllCrafters(): void {
+  game.update((s) => ({ ...s, craftAssignment: {} }));
+}
+
+export function assignAllCrafters(): void {
   game.update((s) => {
-    if (!(recipeId in s.craftRepeat)) return s;
-    const { [recipeId]: _, ...rest } = s.craftRepeat;
-    return { ...s, craftRepeat: rest };
+    // Same top-to-bottom order the Craft tab renders: category by category.
+    const targets = CATEGORY_ORDER.flatMap((cat) =>
+      RECIPES.filter((r) => r.category === cat.id && s.unlockedRecipes.includes(r.id)),
+    ).map((r) => r.id);
+    const idle = idleCrafters(s);
+    if (targets.length === 0 || idle <= 0) return s;
+    return { ...s, craftAssignment: distributeIdle(targets, s.craftAssignment, idle) };
   });
 }
 
-// How many runs of a recipe the current stock can pay for.
-export function affordableRuns(s: GameState, recipeId: string): number {
-  const recipe = RECIPE_BY_ID[recipeId];
-  if (!recipe) return 0;
-  let runs = Infinity;
-  for (const [id, n] of Object.entries(recipe.inputs)) {
-    runs = Math.min(runs, Math.floor((s.resources[id] ?? 0) / n));
-  }
-  return Number.isFinite(runs) ? runs : 0;
+export function hireCrafter(): void {
+  game.update((s) => {
+    const cost = nextHireCost(CRAFTER, s.crafters);
+    if (s.credits < cost) return s;
+    return { ...s, credits: s.credits - cost, crafters: s.crafters + 1 };
+  });
 }
 
 // ---- Research queue ------------------------------------------------------------

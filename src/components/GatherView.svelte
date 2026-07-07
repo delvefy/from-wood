@@ -3,7 +3,7 @@
   import { RESOURCES } from '../content/resources';
   import { TECH } from '../content/tech';
   import { WORKER } from '../content/workers';
-  import { assignWorker, idleWorkers } from '../engine/actions';
+  import { assignAllWorkers, assignWorker, idleWorkers, unassignAllWorkers } from '../engine/actions';
   import { harvestMultiplier } from '../engine/multipliers';
   import { game } from '../engine/state';
   import { formatNumber } from '../util/format';
@@ -15,6 +15,7 @@
     RESOURCES.filter((r) => r.harvestAmount > 0 && !$game.unlockedResources.includes(r.id)),
   );
   const idle = $derived(idleWorkers($game));
+  let manage = $state(false);
 
   // The tech node whose research unlocks this resource (for the locked hint).
   function unlockedBy(resourceId: string) {
@@ -30,10 +31,16 @@
   } as const;
 </script>
 
-<div class="slots">
+<button class="slots" onclick={() => (manage = !manage)}>
   {WORKER.icon} Workers: <strong>{idle}</strong> idle / {$game.workers} total
-  <span class="muted">— hire more in Market</span>
-</div>
+  <span class="muted">— tap to manage {manage ? '▾' : '▸'}</span>
+</button>
+{#if manage}
+  <div class="manage">
+    <button onclick={unassignAllWorkers}>Unassign all</button>
+    <button class="fill" disabled={idle <= 0} onclick={assignAllWorkers}>Assign all evenly</button>
+  </div>
+{/if}
 
 <div class="list">
   {#each gatherable as r (r.id)}
@@ -92,10 +99,15 @@
 
 <style>
   .slots {
+    display: block;
+    width: 100%;
+    text-align: left;
     padding: 10px 12px;
     margin-bottom: 10px;
     background: var(--panel);
     border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
     font-size: 0.9rem;
   }
 
@@ -103,19 +115,39 @@
     font-size: 0.75rem;
   }
 
+  .manage {
+    display: flex;
+    gap: 8px;
+    margin: -2px 0 10px;
+  }
+
+  .manage button {
+    flex: 1;
+    font-size: 0.85rem;
+  }
+
+  .manage .fill {
+    background: var(--grad-primary);
+    border: none;
+    color: #fff;
+    font-weight: 600;
+  }
+
   .list {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 6px;
   }
 
   .card {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding: 12px;
+    gap: 5px;
+    padding: 7px 10px;
     background: var(--panel);
     border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
   }
 
   .top {
@@ -125,17 +157,18 @@
   }
 
   .icon {
-    font-size: 1.6rem;
+    font-size: 1.2rem;
     line-height: 1;
   }
 
   .name {
     flex: 1;
     font-weight: 600;
+    font-size: 0.9rem;
   }
 
   .amount {
-    font-size: 1.1rem;
+    font-size: 0.95rem;
     font-variant-numeric: tabular-nums;
     color: var(--accent);
   }
@@ -143,17 +176,20 @@
   .controls {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
   }
 
   .controls button {
-    min-width: 44px;
+    min-width: 40px;
+    min-height: 32px;
     padding: 0 8px;
+    line-height: 1;
   }
 
   .count {
-    min-width: 4ch;
+    min-width: 3.5ch;
     text-align: center;
+    font-size: 0.85rem;
     font-variant-numeric: tabular-nums;
   }
 
@@ -189,8 +225,8 @@
 
   .card.dim {
     opacity: 0.55;
-    gap: 4px;
-    padding: 8px 12px;
+    gap: 3px;
+    padding: 6px 10px;
   }
 
   .icon.grey {
@@ -210,8 +246,9 @@
   }
 
   .branch {
-    padding: 1px 6px;
+    padding: 1px 8px;
     border: 1px solid var(--border);
+    border-radius: 999px;
     font-size: 0.68rem;
   }
 

@@ -1,6 +1,6 @@
 import { RESOURCES } from '../content/resources';
 import { TECH } from '../content/tech';
-import { CRAFTER, WORKER } from '../content/workers';
+import { CRAFTER, GATHERER } from '../content/workers';
 import type { GameState, WorkerConfig } from './types';
 
 // Precomputed once at module load so totalValue stays cheap per tick.
@@ -30,7 +30,7 @@ function hiredValue(config: WorkerConfig, owned: number): number {
 export function totalValue(s: GameState): number {
   let total = s.credits;
   for (const [id, n] of Object.entries(s.resources)) total += n * (PRICE[id] ?? 0);
-  total += hiredValue(WORKER, s.workers) + hiredValue(CRAFTER, s.crafters);
+  total += hiredValue(GATHERER, s.workers) + hiredValue(CRAFTER, s.crafters);
   for (const id of s.unlockedTech) total += TECH_VALUE[id] ?? 0;
   for (const id of s.researchQueue) total += TECH_VALUE[id] ?? 0;
   return total;

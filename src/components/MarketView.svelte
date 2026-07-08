@@ -1,7 +1,7 @@
 <script lang="ts">
   import { CATEGORY_ORDER, RECIPES } from '../content/recipes';
   import { RESOURCES } from '../content/resources';
-  import { CRAFTER, WORKER } from '../content/workers';
+  import { CRAFTER, GATHERER } from '../content/workers';
   import {
     hireCrafter,
     hireWorker,
@@ -49,11 +49,11 @@
 
   const hireRows = $derived([
     {
-      config: WORKER,
+      config: GATHERER,
       owned: $game.workers,
       idle: idleWorkers($game),
       hire: hireWorker,
-      hint: 'Assign workers to resources in the Gather tab.',
+      hint: 'Assign gatherers to resources in the Gather tab.',
     },
     {
       config: CRAFTER,

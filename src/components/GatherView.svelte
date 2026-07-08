@@ -2,7 +2,7 @@
   import ProgressBar from './ProgressBar.svelte';
   import { RESOURCES } from '../content/resources';
   import { TECH } from '../content/tech';
-  import { WORKER } from '../content/workers';
+  import { GATHERER } from '../content/workers';
   import { assignAllWorkers, assignWorker, idleWorkers, unassignAllWorkers } from '../engine/actions';
   import { harvestMultiplier } from '../engine/multipliers';
   import { game } from '../engine/state';
@@ -32,7 +32,7 @@
 </script>
 
 <button class="slots" onclick={() => (manage = !manage)}>
-  {WORKER.icon} Workers: <strong>{idle}</strong> idle / {$game.workers} total
+  {GATHERER.icon} Gatherers: <strong>{idle}</strong> idle / {$game.workers} total
   <span class="muted">— tap to manage {manage ? '▾' : '▸'}</span>
 </button>
 {#if manage}
@@ -55,13 +55,13 @@
       </div>
       <div class="controls">
         <button disabled={assigned <= 0} onclick={() => assignWorker(r.id, -1)}>−</button>
-        <span class="count">{WORKER.icon} {assigned}</span>
+        <span class="count">{GATHERER.icon} {assigned}</span>
         <button disabled={idle <= 0} onclick={() => assignWorker(r.id, 1)}>+</button>
         <span class="rate muted">
           {#if assigned > 0}
             +{formatNumber(yield_)} / {formatNumber(cycle)}s
           {:else}
-            assign a worker
+            assign a gatherer
           {/if}
         </span>
       </div>

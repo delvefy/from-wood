@@ -1,7 +1,7 @@
 import { CATEGORY_ORDER, RECIPES, RECIPE_BY_ID } from '../content/recipes';
 import { RESOURCES, RESOURCE_BY_ID } from '../content/resources';
 import { TECH_BY_ID } from '../content/tech';
-import { CRAFTER, WORKER } from '../content/workers';
+import { CRAFTER, GATHERER } from '../content/workers';
 import { game } from './state';
 import { canAfford, grantOutputs, spendInputs, tick } from './tick';
 import type { GameState, ResourceId, TechId, WorkerConfig } from './types';
@@ -89,7 +89,7 @@ export function nextHireCost(config: WorkerConfig, owned: number): number {
 
 export function hireWorker(): void {
   game.update((s) => {
-    const cost = nextHireCost(WORKER, s.workers);
+    const cost = nextHireCost(GATHERER, s.workers);
     if (s.credits < cost) return s;
     return { ...s, credits: s.credits - cost, workers: s.workers + 1 };
   });

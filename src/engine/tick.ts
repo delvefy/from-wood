@@ -2,6 +2,7 @@ import { RECIPE_BY_ID } from '../content/recipes';
 import { RESOURCES } from '../content/resources';
 import { TECH_BY_ID } from '../content/tech';
 import { computeMultipliers, harvestMultiplier } from './multipliers';
+import { craftTimeFactor, gatherTimeFactor } from './premium';
 import type { GameState, Recipe, ResourceId, TechNode } from './types';
 
 export function canAfford(s: GameState, inputs: Record<ResourceId, number>): boolean {
@@ -63,6 +64,10 @@ export function unlockOutputs(s: GameState, recipe: Recipe): void {
 // running craft jobs. Deterministic and cheap; also used to fast-forward
 // offline progress.
 export function tick(s: GameState, seconds: number): GameState {
+  // Premium managers shorten cycle durations; hoisted since they apply to all.
+  const gatherFactor = gatherTimeFactor(s);
+  const craftFactor = craftTimeFactor(s);
+
   // Gathering: each resource with assigned workers runs a shared cycle bar;
   // every completed cycle yields (workers × amount × multipliers).
   for (const def of RESOURCES) {
@@ -71,7 +76,7 @@ export function tick(s: GameState, seconds: number): GameState {
       if (s.gatherProgress[def.id]) s.gatherProgress[def.id] = 0;
       continue;
     }
-    const cycle = def.extractTimeSeconds;
+    const cycle = def.extractTimeSeconds * gatherFactor;
     const progress = (s.gatherProgress[def.id] ?? 0) + seconds;
     const cycles = Math.floor(progress / cycle);
     if (cycles > 0) {
@@ -112,7 +117,7 @@ export function tick(s: GameState, seconds: number): GameState {
       if (s.craftProgress[recipeId]) s.craftProgress[recipeId] = 0;
       continue;
     }
-    const cycle = recipe.craftTimeSeconds;
+    const cycle = recipe.craftTimeSeconds * craftFactor;
     const progress = (s.craftProgress[recipeId] ?? 0) + seconds;
     // Loop per cycle (not per tick) so offline fast-forward respects the stock
     // available at each completion. Stock only shrinks within this loop, so a

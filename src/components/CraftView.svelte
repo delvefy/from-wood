@@ -10,6 +10,7 @@
     idleCrafters,
     unassignAllCrafters,
   } from '../engine/actions';
+  import { craftTimeFactor, totalCrafters } from '../engine/premium';
   import { game } from '../engine/state';
   import { collapsed, isCollapsed, toggleCollapsed } from '../util/collapse';
   import { formatNumber } from '../util/format';
@@ -60,7 +61,7 @@
   <p class="muted empty">No recipes yet — research <strong>Woodworking</strong> to unlock crafting.</p>
 {:else}
   <button class="slots" onclick={() => (manage = !manage)}>
-    {CRAFTER.icon} Crafters: <strong>{idle}</strong> idle / {$game.crafters} total
+    {CRAFTER.icon} Crafters: <strong>{idle}</strong> idle / {totalCrafters($game)} total
     <span class="muted">— tap to manage {manage ? '▾' : '▸'}</span>
   </button>
   {#if manage}
@@ -83,7 +84,7 @@
       <div class="list">
         {#each group.unlocked as recipe (recipe.id)}
             {@const assigned = $game.craftAssignment[recipe.id] ?? 0}
-            {@const duration = recipe.craftTimeSeconds}
+            {@const duration = recipe.craftTimeSeconds * craftTimeFactor($game)}
             {@const raw = rawLine(recipe.id)}
             <div class="card">
               <div class="head">

@@ -2,6 +2,7 @@ import { CATEGORY_ORDER, RECIPES, RECIPE_BY_ID } from '../content/recipes';
 import { RESOURCES, RESOURCE_BY_ID } from '../content/resources';
 import { TECH_BY_ID } from '../content/tech';
 import { CRAFTER, GATHERER } from '../content/workers';
+import { sellPriceFactor, totalCrafters, totalGatherers } from './premium';
 import { game } from './state';
 import { canAfford, grantOutputs, spendInputs, tick } from './tick';
 import type { GameState, ResourceId, TechId, WorkerConfig } from './types';
@@ -32,7 +33,7 @@ export function assignedWorkers(s: GameState): number {
 }
 
 export function idleWorkers(s: GameState): number {
-  return s.workers - assignedWorkers(s);
+  return totalGatherers(s) - assignedWorkers(s);
 }
 
 export function assignWorker(resourceId: ResourceId, delta: number): void {
@@ -102,7 +103,7 @@ export function assignedCrafters(s: GameState): number {
 }
 
 export function idleCrafters(s: GameState): number {
-  return s.crafters - assignedCrafters(s);
+  return totalCrafters(s) - assignedCrafters(s);
 }
 
 export function assignCrafter(recipeId: string, delta: number): void {
@@ -192,12 +193,13 @@ export function cancelResearch(techId: TechId): void {
 export function sellEverything(): void {
   game.update((s) => {
     let gained = 0;
+    const priceFactor = sellPriceFactor(s);
     for (const id of s.unlockedResources) {
       const def = RESOURCE_BY_ID[id];
       const n = Math.floor(s.resources[id] ?? 0);
       if (!def || n <= 0) continue;
       s.resources[id] = (s.resources[id] ?? 0) - n;
-      gained += n * def.baseSellPrice;
+      gained += n * def.baseSellPrice * priceFactor;
     }
     if (gained <= 0) return s;
     return { ...s, credits: s.credits + gained };
@@ -212,7 +214,7 @@ export function sellResource(resourceId: ResourceId, amount: number | 'all'): vo
     const n = amount === 'all' ? have : Math.min(amount, have);
     if (n <= 0) return s;
     s.resources[resourceId] = (s.resources[resourceId] ?? 0) - n;
-    s.credits += n * def.baseSellPrice;
+    s.credits += n * def.baseSellPrice * sellPriceFactor(s);
     return { ...s };
   });
 }

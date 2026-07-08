@@ -5,6 +5,7 @@
   import { GATHERER } from '../content/workers';
   import { assignAllWorkers, assignWorker, idleWorkers, unassignAllWorkers } from '../engine/actions';
   import { harvestMultiplier } from '../engine/multipliers';
+  import { gatherTimeFactor, totalGatherers } from '../engine/premium';
   import { game } from '../engine/state';
   import { formatNumber } from '../util/format';
 
@@ -32,7 +33,7 @@
 </script>
 
 <button class="slots" onclick={() => (manage = !manage)}>
-  {GATHERER.icon} Gatherers: <strong>{idle}</strong> idle / {$game.workers} total
+  {GATHERER.icon} Gatherers: <strong>{idle}</strong> idle / {totalGatherers($game)} total
   <span class="muted">— tap to manage {manage ? '▾' : '▸'}</span>
 </button>
 {#if manage}
@@ -45,7 +46,7 @@
 <div class="list">
   {#each gatherable as r (r.id)}
     {@const assigned = $game.gatherAssignment[r.id] ?? 0}
-    {@const cycle = r.extractTimeSeconds}
+    {@const cycle = r.extractTimeSeconds * gatherTimeFactor($game)}
     {@const yield_ = assigned * r.harvestAmount * harvestMultiplier($game.multipliers, r.id)}
     <div class="card">
       <div class="top">

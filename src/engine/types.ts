@@ -1,5 +1,6 @@
 export type ResourceId = string;
 export type TechId = string;
+export type PremiumId = string;
 
 export interface ResourceDef {
   id: ResourceId;
@@ -74,6 +75,18 @@ export interface WorkerConfig {
   startingCount: number; // free gather slots at game start
 }
 
+// A real-money shop item. Purchases are free during development but still go
+// through a confirm dialog; effects are derived from ownership counts, never
+// stored, so saves can't hold stale boosts.
+export interface PremiumItem {
+  id: PremiumId;
+  name: string;
+  icon: string;
+  description: string;
+  priceUsd: number; // display-only for now — nothing is actually charged
+  unique: boolean; // true = own at most once (managers); false = repeatable (packs)
+}
+
 export interface Multipliers {
   gatherAll: number; // 1 + sum of 'all' gatherEfficiency percents / 100
   gatherByResource: Record<ResourceId, number>; // per-resource, same additive scheme
@@ -95,5 +108,6 @@ export interface GameState {
   researchQueue: TechId[]; // head is being researched; one slot, rest wait
   researchProgress: number; // seconds into the queue head
   multipliers: Multipliers; // derived from tech, recomputed on unlock/load
+  premium: Record<PremiumId, number>; // premium purchases, id → copies owned
   lastSeen: number; // epoch ms, for offline progress
 }

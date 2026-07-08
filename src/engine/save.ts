@@ -45,6 +45,7 @@ export async function loadGame(): Promise<OfflineReport | null> {
     unlockedTech: union([], saved.unlockedTech),
     researchQueue: [...(saved.researchQueue ?? [])],
     multipliers: computeMultipliers(saved.unlockedTech ?? []),
+    premium: { ...(saved.premium ?? {}) },
   };
 
   const now = Date.now();

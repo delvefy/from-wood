@@ -77,8 +77,8 @@
         <div class="title">
           <span class="icon">{r.icon}</span>
           <span class="name">{r.name}</span>
+          <span class="amount">{formatNumber($game.resources[r.id] ?? 0)}</span>
         </div>
-        <div class="amount">{formatNumber($game.resources[r.id] ?? 0)}</div>
         <div class="crew">
           {GATHERER.icon} <strong>{assigned}</strong>
           {#if assigned > 0}
@@ -249,9 +249,9 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 3px;
+    gap: 2px;
     min-width: 0;
-    padding: 9px 8px;
+    padding: 6px 8px;
     text-align: center;
   }
 
@@ -264,12 +264,11 @@
   }
 
   .icon {
-    font-size: 1.2rem;
+    font-size: 1.1rem;
     line-height: 1;
   }
 
   .name {
-    flex: 1;
     font-weight: 600;
     font-size: 0.95rem;
   }
@@ -277,7 +276,6 @@
   .amount {
     font-size: 0.95rem;
     font-weight: 600;
-    line-height: 1;
     font-variant-numeric: tabular-nums;
     color: var(--accent);
   }

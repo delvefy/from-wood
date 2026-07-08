@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from './Icon.svelte';
   import ProgressBar from './ProgressBar.svelte';
   import SearchBox from './SearchBox.svelte';
   import { RESOURCES } from '../content/resources';
@@ -75,7 +76,7 @@
       </button>
       <div class="mid">
         <div class="title">
-          <span class="icon">{r.icon}</span>
+          <span class="icon"><Icon id={r.id} /></span>
           <span class="name">{r.name}</span>
           <span class="amount">{formatNumber($game.resources[r.id] ?? 0)}</span>
         </div>
@@ -111,7 +112,7 @@
       {@const tech = unlockedBy(r.id)}
       <div class="card dim">
         <div class="top">
-          <span class="icon grey">{r.icon}</span>
+          <span class="icon grey"><Icon id={r.id} /></span>
           <span class="name">{r.name}</span>
         </div>
         <span class="hint muted">

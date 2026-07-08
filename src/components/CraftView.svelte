@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from './Icon.svelte';
   import ProgressBar from './ProgressBar.svelte';
   import SearchBox from './SearchBox.svelte';
   import { CATEGORY_ORDER, RECIPES } from '../content/recipes';
@@ -60,20 +61,17 @@
   const idle = $derived(idleCrafters($game));
   let manage = $state(false);
 
-  // Raw line is static per recipe; shown only for recipes with crafted inputs.
-  function rawLine(recipeId: string): string {
+  // Every recipe outputs exactly one item type; its icon stands in for the recipe.
+  const outputId = (recipe: Recipe) => Object.keys(recipe.outputs)[0];
+
+  // Raw cost is static per recipe; shown only for recipes with crafted inputs.
+  function rawEntries(recipeId: string): [string, number][] {
     const recipe = RECIPES.find((r) => r.id === recipeId)!;
-    const raws = rawCost(recipe);
     const hasCraftedInput = Object.keys(recipe.inputs).some(
       (id) => (RESOURCE_BY_ID[id]?.harvestAmount ?? 0) === 0,
     );
-    if (!hasCraftedInput) return '';
-    return Object.entries(raws)
-      .map(
-        ([id, n]) =>
-          `${RESOURCE_BY_ID[id]?.icon}${formatNumber(Math.ceil(n))} ${RESOURCE_BY_ID[id]?.name}`,
-      )
-      .join(' · ');
+    if (!hasCraftedInput) return [];
+    return Object.entries(rawCost(recipe));
   }
 </script>
 
@@ -106,7 +104,7 @@
         {#each group.unlocked as recipe (recipe.id)}
             {@const assigned = $game.craftAssignment[recipe.id] ?? 0}
             {@const duration = recipe.craftTimeSeconds * craftTimeFactor($game)}
-            {@const raw = rawLine(recipe.id)}
+            {@const raw = rawEntries(recipe.id)}
             <div class="card craft">
               <button
                 class="chev remove"
@@ -118,7 +116,7 @@
               </button>
               <div class="mid">
                 <div class="title">
-                  <span class="icon">{recipe.icon}</span>
+                  <span class="icon"><Icon id={outputId(recipe)} /></span>
                   <span class="name">{recipe.name}</span>
                 </div>
                 <div class="io">
@@ -130,13 +128,13 @@
                         title="Go to {RESOURCE_BY_ID[id]?.name}"
                         onclick={() => openMaterial(id)}
                       >
-                        {RESOURCE_BY_ID[id]?.icon}{n}
+                        <Icon {id} />{n}
                         {RESOURCE_BY_ID[id]?.name}
                         <small>({formatNumber($game.resources[id] ?? 0)})</small>
                       </button>
                     {:else}
                       <span class="item" class:short={($game.resources[id] ?? 0) < n}>
-                        {RESOURCE_BY_ID[id]?.icon}{n}
+                        <Icon {id} />{n}
                         {RESOURCE_BY_ID[id]?.name}
                         <small>({formatNumber($game.resources[id] ?? 0)})</small>
                       </span>
@@ -145,13 +143,17 @@
                   <span class="arrow">→</span>
                   {#each Object.entries(recipe.outputs) as [id, n] (id)}
                     <span class="item out">
-                      {RESOURCE_BY_ID[id]?.icon}{formatNumber(n * $game.multipliers.craftOutput)}
+                      <Icon {id} />{formatNumber(n * $game.multipliers.craftOutput)}
                       {RESOURCE_BY_ID[id]?.name}
                     </span>
                   {/each}
                 </div>
-                {#if raw}
-                  <div class="raw muted">raw ≈ {raw}</div>
+                {#if raw.length}
+                  <div class="raw muted">
+                    raw ≈
+                    {#each raw as [id, n], i (id)}{#if i}&nbsp;·
+                      {/if}<Icon {id} />{formatNumber(Math.ceil(n))} {RESOURCE_BY_ID[id]?.name}{/each}
+                  </div>
                 {/if}
                 <div class="crew">
                   {CRAFTER.icon} <strong>{assigned}</strong>
@@ -159,7 +161,7 @@
                     <span class="muted">
                       ·
                       {#each Object.entries(recipe.outputs) as [id, n] (id)}
-                        +{RESOURCE_BY_ID[id]?.icon}{formatNumber(assigned * n * $game.multipliers.craftOutput)}
+                        +<Icon {id} />{formatNumber(assigned * n * $game.multipliers.craftOutput)}
                       {/each}
                       / {formatNumber(duration)}s
                     </span>
@@ -188,7 +190,7 @@
           {@const tech = unlockedBy.get(recipe.id)}
           <div class="card dim">
             <div class="head">
-              <span class="rname"><span class="grey">{recipe.icon}</span> {recipe.name}</span>
+              <span class="rname"><span class="grey"><Icon id={outputId(recipe)} /></span> {recipe.name}</span>
               <span class="time muted">🔒</span>
             </div>
             <span class="hint muted">

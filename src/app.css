@@ -19,6 +19,18 @@
   --magitech: #c98a10;
   --shadow: 0 2px 10px rgb(96 66 18 / 14%);
   --grad-primary: linear-gradient(135deg, #8b3fd6, #1878b8);
+
+  /* Resource icon tints by tier (0 = humble wood … 9 = endgame wonder). */
+  --tier-0: #6d5a40;
+  --tier-1: #4a7d2e;
+  --tier-2: #17836b;
+  --tier-3: #1878b8;
+  --tier-4: #5b5bd0;
+  --tier-5: #8b3fd6;
+  --tier-6: #b53fa8;
+  --tier-7: #c25c1f;
+  --tier-8: #b07f14;
+  --tier-9: #d2482b;
 }
 
 /* Theme: industrial — deep arcane night, neon magic + tech */
@@ -41,6 +53,18 @@
   --magitech: #ffc94d;
   --shadow: 0 4px 16px rgb(0 0 0 / 45%);
   --grad-primary: linear-gradient(135deg, #a855f7, #22d3ee);
+
+  /* Brighter tier tints for the dark theme. */
+  --tier-0: #b3a184;
+  --tier-1: #8fd66a;
+  --tier-2: #45d1ac;
+  --tier-3: #4dc9ff;
+  --tier-4: #8f8fff;
+  --tier-5: #c774ff;
+  --tier-6: #ff7ae0;
+  --tier-7: #ffa04d;
+  --tier-8: #ffc94d;
+  --tier-9: #ff5d73;
 }
 
 :root {

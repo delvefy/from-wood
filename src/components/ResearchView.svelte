@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
+  import Icon from './Icon.svelte';
   import ProgressBar from './ProgressBar.svelte';
   import { RESOURCE_BY_ID } from '../content/resources';
   import { TECH, TECH_BY_ID } from '../content/tech';
@@ -10,14 +12,47 @@
   import { settings } from '../util/settings';
 
   // ---- Camera: world point at the viewport center, plus zoom -----------------
-  let cam = $state({ x: 0, y: -60 });
-  let zoom = $state(1);
+  // Persisted as a UI preference so the tree reopens where you left it.
+  const CAM_KEY = 'from-wood-research-cam';
+
+  function loadCam(): { x: number; y: number; zoom: number } | null {
+    try {
+      const p = JSON.parse(localStorage.getItem(CAM_KEY) ?? 'null');
+      if (
+        p &&
+        typeof p.x === 'number' &&
+        typeof p.y === 'number' &&
+        typeof p.zoom === 'number' &&
+        [p.x, p.y, p.zoom].every(Number.isFinite)
+      ) {
+        return p;
+      }
+    } catch {
+      // fall through to defaults
+    }
+    return null;
+  }
+
+  const MIN_ZOOM = 0.1;
+  const MAX_ZOOM = 2.5;
+
+  const savedCam = loadCam();
+  let cam = $state({ x: savedCam?.x ?? 0, y: savedCam?.y ?? -60 });
+  let zoom = $state(clampZoom(savedCam?.zoom ?? 1));
   let vw = $state(0);
   let vh = $state(0);
   let viewportEl: HTMLDivElement | undefined = $state();
 
-  const MIN_ZOOM = 0.1;
-  const MAX_ZOOM = 2.5;
+  // Debounced save while panning/zooming; final flush when leaving the tab.
+  $effect(() => {
+    const snapshot = JSON.stringify({ x: cam.x, y: cam.y, zoom });
+    const t = setTimeout(() => localStorage.setItem(CAM_KEY, snapshot), 250);
+    return () => clearTimeout(t);
+  });
+
+  onDestroy(() => {
+    localStorage.setItem(CAM_KEY, JSON.stringify({ x: cam.x, y: cam.y, zoom }));
+  });
 
   function clampZoom(z: number): number {
     return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z));
@@ -222,12 +257,12 @@
                     title="Go to {RESOURCE_BY_ID[id]?.name}"
                     onclick={(e) => tapMaterial(e, id)}
                   >
-                    {RESOURCE_BY_ID[id]?.icon}{n}
+                    <Icon {id} />{n}
                     {RESOURCE_BY_ID[id]?.name}
                   </button>
                 {:else}
                   <span class="pitem" class:short={($game.resources[id] ?? 0) < n}>
-                    {RESOURCE_BY_ID[id]?.icon}{n}
+                    <Icon {id} />{n}
                     {RESOURCE_BY_ID[id]?.name}
                   </span>
                 {/if}

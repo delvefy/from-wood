@@ -22,6 +22,7 @@
   import { hardReset } from '../engine/save';
   import type { PremiumItem } from '../engine/types';
   import { game } from '../engine/state';
+  import Icon from './Icon.svelte';
   import SearchBox from './SearchBox.svelte';
   import { collapsed, isCollapsed, toggleCollapsed } from '../util/collapse';
   import { formatCredits, formatNumber } from '../util/format';
@@ -121,7 +122,7 @@
     {#if query || !isCollapsed($collapsed, 'market', group.id)}
       {#each group.items as r (r.id)}
         <div class="row">
-          <span class="what">{r.icon} {r.name}</span>
+          <span class="what"><Icon id={r.id} /> {r.name}</span>
           <span class="have">{formatNumber($game.resources[r.id] ?? 0)}</span>
           <span class="price">{formatCredits(r.baseSellPrice * priceFactor)}/u</span>
           <span class="btns">

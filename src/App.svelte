@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import BottomNav from './components/BottomNav.svelte';
+  import Icon from './components/Icon.svelte';
   import CraftView from './components/CraftView.svelte';
   import GatherView from './components/GatherView.svelte';
   import MarketView from './components/MarketView.svelte';
@@ -72,7 +73,7 @@
             <li>🔬 Researched {TECH_BY_ID[id]?.name ?? id}</li>
           {/each}
           {#each Object.entries(offline.resourceGains) as [id, gain] (id)}
-            <li>{RESOURCE_BY_ID[id]?.icon} +{formatNumber(gain)} {RESOURCE_BY_ID[id]?.name ?? id}</li>
+            <li><Icon {id} /> +{formatNumber(gain)} {RESOURCE_BY_ID[id]?.name ?? id}</li>
           {/each}
         </ul>
         <button class="primary" onclick={() => (offline = null)}>Nice</button>

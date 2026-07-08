@@ -25,7 +25,22 @@
   </span>
 </button>
 
+<h2>Credits</h2>
+<p class="credits muted">
+  Item icons by the <a href="https://game-icons.net" target="_blank" rel="noopener">game-icons.net</a>
+  contributors, licensed under
+  <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a>.
+</p>
+
 <style>
+  .credits {
+    font-size: 0.78rem;
+  }
+
+  .credits a {
+    color: inherit;
+  }
+
   .options {
     display: flex;
     gap: 8px;

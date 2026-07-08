@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "validate": "node --import tsx scripts/validate-content.ts",
-    "icons": "node scripts/gen-icons.mjs"
+    "icons": "node scripts/gen-icons.mjs",
+    "fetch-icons": "node scripts/fetch-game-icons.mjs"
   },
   "dependencies": {
     "idb-keyval": "^6.2.2"

@@ -8,6 +8,7 @@
   import { gatherTimeFactor, totalGatherers } from '../engine/premium';
   import { game } from '../engine/state';
   import { formatNumber } from '../util/format';
+  import { holdRepeat } from '../util/holdRepeat';
 
   const gatherable = $derived(
     RESOURCES.filter((r) => r.harvestAmount > 0 && $game.unlockedResources.includes(r.id)),
@@ -48,30 +49,44 @@
     {@const assigned = $game.gatherAssignment[r.id] ?? 0}
     {@const cycle = r.extractTimeSeconds * gatherTimeFactor($game)}
     {@const yield_ = assigned * r.harvestAmount * harvestMultiplier($game.multipliers, r.id)}
-    <div class="card">
-      <div class="top">
-        <span class="icon">{r.icon}</span>
-        <span class="name">{r.name}</span>
-        <span class="amount">{formatNumber($game.resources[r.id] ?? 0)}</span>
-      </div>
-      <div class="controls">
-        <button disabled={assigned <= 0} onclick={() => assignWorker(r.id, -1)}>−</button>
-        <span class="count">{GATHERER.icon} {assigned}</span>
-        <button disabled={idle <= 0} onclick={() => assignWorker(r.id, 1)}>+</button>
-        <span class="rate muted">
-          {#if assigned > 0}
-            +{formatNumber(yield_)} / {formatNumber(cycle)}s
-          {:else}
-            assign a gatherer
-          {/if}
-        </span>
-      </div>
-      {#if assigned > 0}
-        <div class="progress">
-          <ProgressBar value={$game.gatherProgress[r.id] ?? 0} max={cycle} />
-          <span class="left muted">{Math.ceil(cycle - ($game.gatherProgress[r.id] ?? 0))}s</span>
+    <div class="card gather">
+      <button
+        class="chev remove"
+        aria-label="Unassign a gatherer from {r.name}"
+        disabled={assigned <= 0}
+        use:holdRepeat={() => assignWorker(r.id, -1)}
+      >
+        <svg viewBox="0 0 24 48" aria-hidden="true"><path d="M19 7 L7 24 L19 41" /></svg>
+      </button>
+      <div class="mid">
+        <div class="title">
+          <span class="icon">{r.icon}</span>
+          <span class="name">{r.name}</span>
         </div>
-      {/if}
+        <div class="amount">{formatNumber($game.resources[r.id] ?? 0)}</div>
+        <div class="crew">
+          {GATHERER.icon} <strong>{assigned}</strong>
+          {#if assigned > 0}
+            <span class="muted">· +{formatNumber(yield_)} / {formatNumber(cycle)}s</span>
+          {:else}
+            <span class="muted">· hold ❯ to assign</span>
+          {/if}
+        </div>
+        {#if assigned > 0}
+          <div class="progress">
+            <ProgressBar value={$game.gatherProgress[r.id] ?? 0} max={cycle} />
+            <span class="left muted">{Math.ceil(cycle - ($game.gatherProgress[r.id] ?? 0))}s</span>
+          </div>
+        {/if}
+      </div>
+      <button
+        class="chev add"
+        aria-label="Assign a gatherer to {r.name}"
+        disabled={idle <= 0}
+        use:holdRepeat={() => assignWorker(r.id, 1)}
+      >
+        <svg viewBox="0 0 24 48" aria-hidden="true"><path d="M5 7 L17 24 L5 41" /></svg>
+      </button>
     </div>
   {/each}
 
@@ -151,10 +166,86 @@
     box-shadow: var(--shadow);
   }
 
-  .top {
+  /* Gather cards: chevron rails on the edges, info centered between them. */
+  .card.gather {
+    display: grid;
+    grid-template-columns: 52px 1fr 52px;
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .chev {
     display: flex;
     align-items: center;
-    gap: 8px;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: color-mix(in srgb, var(--panel-2) 55%, transparent);
+    color: var(--accent);
+    touch-action: none;
+    -webkit-touch-callout: none;
+  }
+
+  .chev.remove {
+    border-right: 1px solid var(--border);
+    color: var(--danger);
+  }
+
+  .chev.add {
+    border-left: 1px solid var(--border);
+  }
+
+  .chev svg {
+    width: 20px;
+    height: 40px;
+    transition: transform 0.08s ease;
+  }
+
+  .chev path {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 5;
+    stroke-linejoin: miter;
+    stroke-linecap: butt;
+  }
+
+  .chev:not(:disabled):active {
+    transform: none; /* the global button squish moves the whole rail; scale the arrow instead */
+    background: color-mix(in srgb, currentColor 16%, transparent);
+  }
+
+  .chev:not(:disabled):active svg {
+    transform: scale(0.8);
+  }
+
+  .chev:disabled {
+    opacity: 1;
+    color: color-mix(in srgb, var(--muted) 40%, transparent);
+    background: transparent;
+  }
+
+  .mid {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-width: 0;
+    padding: 9px 8px;
+    text-align: center;
+  }
+
+  .title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    font-size: 0.92rem;
   }
 
   .icon {
@@ -169,40 +260,27 @@
   }
 
   .amount {
-    font-size: 0.95rem;
+    font-size: 1.05rem;
+    line-height: 1;
     font-variant-numeric: tabular-nums;
     color: var(--accent);
   }
 
-  .controls {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+  .crew {
+    font-size: 0.8rem;
   }
 
-  .controls button {
-    min-width: 40px;
-    min-height: 32px;
-    padding: 0 8px;
-    line-height: 1;
-  }
-
-  .count {
-    min-width: 3.5ch;
-    text-align: center;
-    font-size: 0.85rem;
+  .crew strong {
+    font-size: 0.95rem;
     font-variant-numeric: tabular-nums;
-  }
-
-  .rate {
-    margin-left: auto;
-    font-size: 0.75rem;
   }
 
   .progress {
     display: flex;
     align-items: center;
     gap: 8px;
+    width: 100%;
+    margin-top: 2px;
   }
 
   .progress :global(.track) {
@@ -228,6 +306,12 @@
     opacity: 0.55;
     gap: 3px;
     padding: 6px 10px;
+  }
+
+  .top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 
   .icon.grey {

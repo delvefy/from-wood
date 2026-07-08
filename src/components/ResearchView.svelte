@@ -6,6 +6,8 @@
   import { game } from '../engine/state';
   import { canAfford } from '../engine/tick';
   import type { TechNode } from '../engine/types';
+  import { openMaterial } from '../util/nav';
+  import { settings } from '../util/settings';
 
   // ---- Camera: world point at the viewport center, plus zoom -----------------
   let cam = $state({ x: 0, y: -60 });
@@ -126,8 +128,14 @@
 
   function tap(node: TechNode, st: Status) {
     if (moved > 8) return; // was a pan, not a tap
-    if (st === 'available') queueResearch(node.id);
+    if (st === 'available' && canAfford($game, node.cost)) queueResearch(node.id);
     else if (st === 'active' || st === 'queued') cancelResearch(node.id);
+  }
+
+  function tapMaterial(e: Event, id: string) {
+    e.stopPropagation(); // don't also queue/cancel the node behind the chip
+    if (moved > 8) return;
+    openMaterial(id);
   }
 
   const activeNode = $derived(
@@ -184,21 +192,45 @@
       </svg>
       {#each TECH as node (node.id)}
         {@const st = status(node)}
-        <button
+        <!-- A div, not a button: cost chips inside must stay tappable even when
+             the node itself is locked/unaffordable (disabled buttons swallow
+             child clicks). tap() guards status and affordability instead. -->
+        <div
           class="node {st} {node.branch}"
           class:major={node.major}
-          disabled={st === 'owned' || st === 'locked' || (st === 'available' && !canAfford($game, node.cost))}
+          role="button"
+          tabindex="0"
           style="left: {node.x}px; top: {node.y}px"
           onclick={() => tap(node, st)}
+          onkeydown={(e) => {
+            if (e.target !== e.currentTarget) return; // key events from cost chips
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              tap(node, st);
+            }
+          }}
         >
           <span class="tname">{node.name}</span>
           <span class="tdesc">{node.description}</span>
           {#if st === 'available' || st === 'locked'}
             <span class="tprice">
               {#each Object.entries(node.cost) as [id, n] (id)}
-                <span class="pitem" class:short={($game.resources[id] ?? 0) < n}>
-                  {RESOURCE_BY_ID[id]?.icon}{n}
-                </span>
+                {#if $settings.materialLinks}
+                  <button
+                    class="pitem link"
+                    class:short={($game.resources[id] ?? 0) < n}
+                    title="Go to {RESOURCE_BY_ID[id]?.name}"
+                    onclick={(e) => tapMaterial(e, id)}
+                  >
+                    {RESOURCE_BY_ID[id]?.icon}{n}
+                    {RESOURCE_BY_ID[id]?.name}
+                  </button>
+                {:else}
+                  <span class="pitem" class:short={($game.resources[id] ?? 0) < n}>
+                    {RESOURCE_BY_ID[id]?.icon}{n}
+                    {RESOURCE_BY_ID[id]?.name}
+                  </span>
+                {/if}
               {/each}
             </span>
           {/if}
@@ -216,7 +248,7 @@
           {#if st === 'active'}
             <ProgressBar value={$game.researchProgress} max={node.researchTimeSeconds} />
           {/if}
-        </button>
+        </div>
       {/each}
     </div>
 
@@ -347,9 +379,16 @@
     gap: 3px;
     padding: 8px 6px 6px;
     background: var(--panel);
+    border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     overflow: hidden;
     text-align: center;
+    cursor: pointer;
+  }
+
+  .node.owned,
+  .node.locked {
+    cursor: default;
   }
 
   .node.major {
@@ -378,10 +417,6 @@
 
   .node.magitech::before {
     background: var(--magitech);
-  }
-
-  .node:disabled {
-    opacity: 1;
   }
 
   .node.locked {
@@ -439,6 +474,20 @@
     background: var(--panel-2);
     border-radius: 999px;
     white-space: nowrap;
+  }
+
+  /* Cost chips become tappable material links when the setting is on. */
+  button.pitem {
+    min-height: 0;
+    border: none;
+    color: inherit;
+    font-size: 0.65rem;
+    line-height: inherit;
+  }
+
+  .pitem.link {
+    text-decoration: underline dotted;
+    text-underline-offset: 2px;
   }
 
   .pitem.short {

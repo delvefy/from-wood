@@ -14,8 +14,11 @@ export const theme = writable<Theme>(initialTheme());
 theme.subscribe((t) => {
   document.documentElement.dataset.theme = t;
   localStorage.setItem(STORAGE_KEY, t);
+  document
+    .querySelector('meta[name="theme-color"]')
+    ?.setAttribute('content', t === 'industrial' ? '#0c0a1e' : '#ede3cf');
 });
 
-export function toggleTheme() {
-  theme.update((t) => (t === 'wood' ? 'industrial' : 'wood'));
+export function setTheme(t: Theme) {
+  theme.set(t);
 }

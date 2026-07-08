@@ -60,8 +60,19 @@ body {
   height: 100%;
 }
 
-/* Soft magic (top-left) and tech (bottom-right) auras behind everything. */
+/* Paint the root too, so no white peeks out behind the status bar or on rubber-band. */
+html {
+  background: var(--bg);
+  overscroll-behavior: none;
+}
+
+/* Soft magic (top-left) and tech (bottom-right) auras behind everything.
+   The body is fixed and never scrolls (only <main> does), which also
+   suppresses pull-to-refresh on mobile. */
 body {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
   background:
     radial-gradient(620px 420px at 10% -4%, var(--bg-glow-1), transparent 70%),
     radial-gradient(720px 520px at 104% 106%, var(--bg-glow-2), transparent 70%),

@@ -2,7 +2,7 @@
   import { game } from '../engine/state';
   import { totalValue } from '../engine/worth';
   import { formatCredits } from '../util/format';
-  import { theme, toggleTheme } from '../util/theme';
+  import { activeTab } from '../util/nav';
 </script>
 
 <header>
@@ -12,11 +12,12 @@
   </div>
   <button
     class="theme-toggle"
-    onclick={toggleTheme}
-    aria-label="Switch theme"
-    title={$theme === 'wood' ? 'Switch to dark theme' : 'Switch to light theme'}
+    class:active={$activeTab === 'settings'}
+    onclick={() => activeTab.set('settings')}
+    aria-label="Open settings"
+    title="Settings"
   >
-    {$theme === 'wood' ? '🌙' : '☀️'}
+    ⚙️
   </button>
 </header>
 
@@ -68,5 +69,10 @@
     font-size: 0.85rem;
     line-height: 1;
     border-radius: 999px;
+  }
+
+  .theme-toggle.active {
+    border-color: color-mix(in srgb, var(--magic) 45%, var(--border));
+    box-shadow: 0 0 10px color-mix(in srgb, var(--magic) 25%, transparent);
   }
 </style>

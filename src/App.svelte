@@ -1,18 +1,19 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import BottomNav, { type Tab } from './components/BottomNav.svelte';
+  import BottomNav from './components/BottomNav.svelte';
   import CraftView from './components/CraftView.svelte';
   import GatherView from './components/GatherView.svelte';
   import MarketView from './components/MarketView.svelte';
   import ResearchView from './components/ResearchView.svelte';
   import ResourceBar from './components/ResourceBar.svelte';
+  import SettingsView from './components/SettingsView.svelte';
   import { RESOURCE_BY_ID } from './content/resources';
   import { TECH_BY_ID } from './content/tech';
   import { resetTickClock, runTick } from './engine/actions';
   import { loadGame, saveGame, type OfflineReport } from './engine/save';
   import { formatDuration, formatNumber } from './util/format';
+  import { activeTab } from './util/nav';
 
-  let tab = $state<Tab>('gather');
   let ready = $state(false);
   let offline = $state<OfflineReport | null>(null);
 
@@ -47,17 +48,19 @@
 {#if ready}
   <ResourceBar />
   <main>
-    {#if tab === 'gather'}
+    {#if $activeTab === 'gather'}
       <GatherView />
-    {:else if tab === 'craft'}
+    {:else if $activeTab === 'craft'}
       <CraftView />
-    {:else if tab === 'research'}
+    {:else if $activeTab === 'research'}
       <ResearchView />
+    {:else if $activeTab === 'settings'}
+      <SettingsView />
     {:else}
       <MarketView />
     {/if}
   </main>
-  <BottomNav {tab} onchange={(t) => (tab = t)} />
+  <BottomNav />
 
   {#if offline}
     <div class="overlay" role="dialog" aria-label="Offline progress">
@@ -84,6 +87,7 @@
   main {
     flex: 1;
     overflow-y: auto;
+    overscroll-behavior: contain;
     padding: 12px;
   }
 

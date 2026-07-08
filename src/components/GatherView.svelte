@@ -1,5 +1,6 @@
 <script lang="ts">
   import ProgressBar from './ProgressBar.svelte';
+  import SearchBox from './SearchBox.svelte';
   import { RESOURCES } from '../content/resources';
   import { TECH } from '../content/tech';
   import { GATHERER } from '../content/workers';
@@ -9,12 +10,24 @@
   import { game } from '../engine/state';
   import { formatNumber } from '../util/format';
   import { holdRepeat } from '../util/holdRepeat';
+  import { searchFilters } from '../util/nav';
 
+  const query = $derived(($searchFilters.gather ?? '').trim().toLowerCase());
   const gatherable = $derived(
-    RESOURCES.filter((r) => r.harvestAmount > 0 && $game.unlockedResources.includes(r.id)),
+    RESOURCES.filter(
+      (r) =>
+        r.harvestAmount > 0 &&
+        $game.unlockedResources.includes(r.id) &&
+        r.name.toLowerCase().includes(query),
+    ),
   );
   const locked = $derived(
-    RESOURCES.filter((r) => r.harvestAmount > 0 && !$game.unlockedResources.includes(r.id)),
+    RESOURCES.filter(
+      (r) =>
+        r.harvestAmount > 0 &&
+        !$game.unlockedResources.includes(r.id) &&
+        r.name.toLowerCase().includes(query),
+    ),
   );
   const idle = $derived(idleWorkers($game));
   let manage = $state(false);
@@ -32,6 +45,8 @@
     magitech: '⚡ Magitech',
   } as const;
 </script>
+
+<SearchBox view="gather" placeholder="Search materials…" />
 
 <button class="slots" onclick={() => (manage = !manage)}>
   {GATHERER.icon} Gatherers: <strong>{idle}</strong> idle / {totalGatherers($game)} total
@@ -245,7 +260,7 @@
     align-items: center;
     gap: 6px;
     font-weight: 600;
-    font-size: 0.92rem;
+    font-size: 0.95rem;
   }
 
   .icon {
@@ -256,11 +271,12 @@
   .name {
     flex: 1;
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: 0.95rem;
   }
 
   .amount {
-    font-size: 1.05rem;
+    font-size: 0.95rem;
+    font-weight: 600;
     line-height: 1;
     font-variant-numeric: tabular-nums;
     color: var(--accent);

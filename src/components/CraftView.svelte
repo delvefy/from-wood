@@ -1,5 +1,6 @@
 <script lang="ts">
   import ProgressBar from './ProgressBar.svelte';
+  import SearchBox from './SearchBox.svelte';
   import { CATEGORY_ORDER, RECIPES } from '../content/recipes';
   import { RESOURCE_BY_ID } from '../content/resources';
   import { TECH } from '../content/tech';
@@ -14,7 +15,11 @@
   import { game } from '../engine/state';
   import { collapsed, isCollapsed, toggleCollapsed } from '../util/collapse';
   import { formatNumber } from '../util/format';
+  import { holdRepeat } from '../util/holdRepeat';
+  import { openMaterial, searchFilters } from '../util/nav';
   import { rawCost } from '../util/rawCost';
+  import { settings } from '../util/settings';
+  import type { Recipe } from '../engine/types';
 
   // The tech node whose research unlocks each recipe (for the locked hint).
   const unlockedBy = new Map(
@@ -29,9 +34,21 @@
     magitech: '⚡ Magitech',
   } as const;
 
+  const query = $derived(($searchFilters.craft ?? '').trim().toLowerCase());
+
+  // A recipe matches on its own name or on any output material's name, so
+  // material links land on the recipes that produce that material.
+  function matchesQuery(recipe: Recipe, q: string): boolean {
+    if (!q) return true;
+    if (recipe.name.toLowerCase().includes(q)) return true;
+    return Object.keys(recipe.outputs).some((id) =>
+      (RESOURCE_BY_ID[id]?.name ?? '').toLowerCase().includes(q),
+    );
+  }
+
   const groups = $derived(
     CATEGORY_ORDER.map((cat) => {
-      const recipes = RECIPES.filter((r) => r.category === cat.id);
+      const recipes = RECIPES.filter((r) => r.category === cat.id && matchesQuery(r, query));
       return {
         ...cat,
         unlocked: recipes.filter((r) => $game.unlockedRecipes.includes(r.id)),
@@ -39,7 +56,7 @@
       };
     }).filter((g) => g.unlocked.length > 0 || g.locked.length > 0),
   );
-  const anyUnlocked = $derived(groups.some((g) => g.unlocked.length > 0));
+  const anyUnlocked = $derived($game.unlockedRecipes.length > 0);
   const idle = $derived(idleCrafters($game));
   let manage = $state(false);
 
@@ -52,14 +69,18 @@
     );
     if (!hasCraftedInput) return '';
     return Object.entries(raws)
-      .map(([id, n]) => `${RESOURCE_BY_ID[id]?.icon}${formatNumber(Math.ceil(n))}`)
-      .join(' ');
+      .map(
+        ([id, n]) =>
+          `${RESOURCE_BY_ID[id]?.icon}${formatNumber(Math.ceil(n))} ${RESOURCE_BY_ID[id]?.name}`,
+      )
+      .join(' · ');
   }
 </script>
 
 {#if !anyUnlocked}
   <p class="muted empty">No recipes yet — research <strong>Woodworking</strong> to unlock crafting.</p>
 {:else}
+  <SearchBox view="craft" placeholder="Search recipes & materials…" />
   <button class="slots" onclick={() => (manage = !manage)}>
     {CRAFTER.icon} Crafters: <strong>{idle}</strong> idle / {totalCrafters($game)} total
     <span class="muted">— tap to manage {manage ? '▾' : '▸'}</span>
@@ -80,55 +101,87 @@
         {isCollapsed($collapsed, 'craft', group.id) ? '▸' : '▾'}
       </span>
     </button>
-    {#if !isCollapsed($collapsed, 'craft', group.id)}
+    {#if query || !isCollapsed($collapsed, 'craft', group.id)}
       <div class="list">
         {#each group.unlocked as recipe (recipe.id)}
             {@const assigned = $game.craftAssignment[recipe.id] ?? 0}
             {@const duration = recipe.craftTimeSeconds * craftTimeFactor($game)}
             {@const raw = rawLine(recipe.id)}
-            <div class="card">
-              <div class="head">
-                <span class="rname">{recipe.icon} {recipe.name}</span>
-                <span class="time muted">⏱ {formatNumber(duration)}s</span>
-              </div>
-              <div class="io">
-                {#each Object.entries(recipe.inputs) as [id, n] (id)}
-                  <span class="item" class:short={($game.resources[id] ?? 0) < n}>
-                    {RESOURCE_BY_ID[id]?.icon}{n}
-                    <small>({formatNumber($game.resources[id] ?? 0)})</small>
-                  </span>
-                {/each}
-                <span class="arrow">→</span>
-                {#each Object.entries(recipe.outputs) as [id, n] (id)}
-                  <span class="item out">
-                    {RESOURCE_BY_ID[id]?.icon}{formatNumber(n * $game.multipliers.craftOutput)}
-                  </span>
-                {/each}
-              </div>
-              {#if raw}
-                <div class="raw muted">raw ≈ {raw}</div>
-              {/if}
-              <div class="controls">
-                <button disabled={assigned <= 0} onclick={() => assignCrafter(recipe.id, -1)}>−</button>
-                <span class="count">{CRAFTER.icon} {assigned}</span>
-                <button disabled={idle <= 0} onclick={() => assignCrafter(recipe.id, 1)}>+</button>
-                <span class="rate muted">
-                  {#if assigned > 0}
-                    {#each Object.entries(recipe.outputs) as [id, n] (id)}
-                      +{RESOURCE_BY_ID[id]?.icon}{formatNumber(assigned * n * $game.multipliers.craftOutput)}
-                    {/each}
-                    / {formatNumber(duration)}s
-                  {:else}
-                    assign a crafter
-                  {/if}
-                </span>
-              </div>
-              {#if assigned > 0}
-                <div class="progress">
-                  <ProgressBar value={$game.craftProgress[recipe.id] ?? 0} max={duration} />
-                  <span class="left muted">{Math.ceil(duration - ($game.craftProgress[recipe.id] ?? 0))}s</span>
+            <div class="card craft">
+              <button
+                class="chev remove"
+                aria-label="Unassign a crafter from {recipe.name}"
+                disabled={assigned <= 0}
+                use:holdRepeat={() => assignCrafter(recipe.id, -1)}
+              >
+                <svg viewBox="0 0 24 48" aria-hidden="true"><path d="M19 7 L7 24 L19 41" /></svg>
+              </button>
+              <div class="mid">
+                <div class="title">
+                  <span class="icon">{recipe.icon}</span>
+                  <span class="name">{recipe.name}</span>
                 </div>
-              {/if}
+                <div class="io">
+                  {#each Object.entries(recipe.inputs) as [id, n] (id)}
+                    {#if $settings.materialLinks}
+                      <button
+                        class="item link"
+                        class:short={($game.resources[id] ?? 0) < n}
+                        title="Go to {RESOURCE_BY_ID[id]?.name}"
+                        onclick={() => openMaterial(id)}
+                      >
+                        {RESOURCE_BY_ID[id]?.icon}{n}
+                        {RESOURCE_BY_ID[id]?.name}
+                        <small>({formatNumber($game.resources[id] ?? 0)})</small>
+                      </button>
+                    {:else}
+                      <span class="item" class:short={($game.resources[id] ?? 0) < n}>
+                        {RESOURCE_BY_ID[id]?.icon}{n}
+                        {RESOURCE_BY_ID[id]?.name}
+                        <small>({formatNumber($game.resources[id] ?? 0)})</small>
+                      </span>
+                    {/if}
+                  {/each}
+                  <span class="arrow">→</span>
+                  {#each Object.entries(recipe.outputs) as [id, n] (id)}
+                    <span class="item out">
+                      {RESOURCE_BY_ID[id]?.icon}{formatNumber(n * $game.multipliers.craftOutput)}
+                      {RESOURCE_BY_ID[id]?.name}
+                    </span>
+                  {/each}
+                </div>
+                {#if raw}
+                  <div class="raw muted">raw ≈ {raw}</div>
+                {/if}
+                <div class="crew">
+                  {CRAFTER.icon} <strong>{assigned}</strong>
+                  {#if assigned > 0}
+                    <span class="muted">
+                      ·
+                      {#each Object.entries(recipe.outputs) as [id, n] (id)}
+                        +{RESOURCE_BY_ID[id]?.icon}{formatNumber(assigned * n * $game.multipliers.craftOutput)}
+                      {/each}
+                      / {formatNumber(duration)}s
+                    </span>
+                  {:else}
+                    <span class="muted">· hold ❯ to assign · ⏱ {formatNumber(duration)}s</span>
+                  {/if}
+                </div>
+                {#if assigned > 0}
+                  <div class="progress">
+                    <ProgressBar value={$game.craftProgress[recipe.id] ?? 0} max={duration} />
+                    <span class="left muted">{Math.ceil(duration - ($game.craftProgress[recipe.id] ?? 0))}s</span>
+                  </div>
+                {/if}
+              </div>
+              <button
+                class="chev add"
+                aria-label="Assign a crafter to {recipe.name}"
+                disabled={idle <= 0}
+                use:holdRepeat={() => assignCrafter(recipe.id, 1)}
+              >
+                <svg viewBox="0 0 24 48" aria-hidden="true"><path d="M5 7 L17 24 L5 41" /></svg>
+              </button>
             </div>
         {/each}
         {#each group.locked as recipe (recipe.id)}
@@ -234,6 +287,111 @@
     box-shadow: var(--shadow);
   }
 
+  /* Craft cards: chevron rails on the edges, info centered between them. */
+  .card.craft {
+    display: grid;
+    grid-template-columns: 52px 1fr 52px;
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .chev {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: color-mix(in srgb, var(--panel-2) 55%, transparent);
+    color: var(--accent);
+    touch-action: none;
+    -webkit-touch-callout: none;
+  }
+
+  .chev.remove {
+    border-right: 1px solid var(--border);
+    color: var(--danger);
+  }
+
+  .chev.add {
+    border-left: 1px solid var(--border);
+  }
+
+  .chev svg {
+    width: 20px;
+    height: 40px;
+    transition: transform 0.08s ease;
+  }
+
+  .chev path {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 5;
+    stroke-linejoin: miter;
+    stroke-linecap: butt;
+  }
+
+  .chev:not(:disabled):active {
+    transform: none; /* the global button squish moves the whole rail; scale the arrow instead */
+    background: color-mix(in srgb, currentColor 16%, transparent);
+  }
+
+  .chev:not(:disabled):active svg {
+    transform: scale(0.8);
+  }
+
+  .chev:disabled {
+    opacity: 1;
+    color: color-mix(in srgb, var(--muted) 40%, transparent);
+    background: transparent;
+  }
+
+  .mid {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 0;
+    padding: 9px 8px;
+    text-align: center;
+  }
+
+  .title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+
+  .icon {
+    font-size: 1.2rem;
+    line-height: 1;
+  }
+
+  .name {
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+
+  .io {
+    justify-content: center;
+  }
+
+  .crew {
+    font-size: 0.8rem;
+  }
+
+  .crew strong {
+    font-size: 0.95rem;
+    font-variant-numeric: tabular-nums;
+  }
+
   .head {
     display: flex;
     justify-content: space-between;
@@ -263,6 +421,19 @@
     white-space: nowrap;
   }
 
+  /* Input chips become tappable material links when the setting is on. */
+  button.item {
+    min-height: 0;
+    border: none;
+    font: inherit;
+    color: inherit;
+  }
+
+  .item.link {
+    text-decoration: underline dotted;
+    text-underline-offset: 2px;
+  }
+
   .item small {
     color: var(--muted);
   }
@@ -284,32 +455,12 @@
     font-size: 0.75rem;
   }
 
-  .controls {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .controls button {
-    min-width: 44px;
-    padding: 0 8px;
-  }
-
-  .count {
-    min-width: 4ch;
-    text-align: center;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .rate {
-    margin-left: auto;
-    font-size: 0.75rem;
-  }
-
   .progress {
     display: flex;
     align-items: center;
     gap: 8px;
+    width: 100%;
+    margin-top: 2px;
   }
 
   .progress :global(.track) {

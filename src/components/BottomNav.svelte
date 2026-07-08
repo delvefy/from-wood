@@ -1,9 +1,5 @@
-<script module lang="ts">
-  export type Tab = 'gather' | 'craft' | 'research' | 'market';
-</script>
-
 <script lang="ts">
-  let { tab, onchange }: { tab: Tab; onchange: (tab: Tab) => void } = $props();
+  import { activeTab, type Tab } from '../util/nav';
 
   const tabs: { id: Tab; icon: string; label: string }[] = [
     { id: 'gather', icon: '🪵', label: 'Gather' },
@@ -15,7 +11,7 @@
 
 <nav>
   {#each tabs as t (t.id)}
-    <button class:active={tab === t.id} onclick={() => onchange(t.id)}>
+    <button class:active={$activeTab === t.id} onclick={() => activeTab.set(t.id)}>
       <span class="icon">{t.icon}</span>
       <span class="label">{t.label}</span>
     </button>

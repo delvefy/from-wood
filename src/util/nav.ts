@@ -1,0 +1,23 @@
+import { writable } from 'svelte/store';
+import { RESOURCE_BY_ID } from '../content/resources';
+
+export type Tab = 'gather' | 'craft' | 'research' | 'market' | 'settings';
+
+export const activeTab = writable<Tab>('gather');
+
+// Per-view search text ('gather' | 'craft' | 'market'), session-only.
+export const searchFilters = writable<Record<string, string>>({});
+
+export function setSearch(view: string, text: string): void {
+  searchFilters.update((s) => ({ ...s, [view]: text }));
+}
+
+// Jump to where a material comes from: gatherable → Gather, crafted → Craft,
+// with that view's search filter pre-set to the material's name.
+export function openMaterial(resourceId: string): void {
+  const resource = RESOURCE_BY_ID[resourceId];
+  if (!resource) return;
+  const tab: Tab = resource.harvestAmount > 0 ? 'gather' : 'craft';
+  setSearch(tab, resource.name);
+  activeTab.set(tab);
+}

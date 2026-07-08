@@ -22,8 +22,10 @@
   import { hardReset } from '../engine/save';
   import type { PremiumItem } from '../engine/types';
   import { game } from '../engine/state';
+  import SearchBox from './SearchBox.svelte';
   import { collapsed, isCollapsed, toggleCollapsed } from '../util/collapse';
   import { formatCredits, formatNumber } from '../util/format';
+  import { searchFilters } from '../util/nav';
 
   // Crafted items sell under their recipe's category; gathered ones share one group.
   const categoryByOutput = new Map<string, string>();
@@ -35,12 +37,15 @@
 
   const SELL_CATEGORIES = [{ id: 'gathered', label: 'Gathered', icon: '🌿' }, ...CATEGORY_ORDER];
 
+  const query = $derived(($searchFilters.market ?? '').trim().toLowerCase());
+
   const sellGroups = $derived(
     SELL_CATEGORIES.map((cat) => ({
       ...cat,
       items: RESOURCES.filter(
         (r) =>
           $game.unlockedResources.includes(r.id) &&
+          r.name.toLowerCase().includes(query) &&
           (r.harvestAmount > 0 ? 'gathered' : (categoryByOutput.get(r.id) ?? 'goods')) === cat.id,
       ),
     })).filter((g) => g.items.length > 0),
@@ -94,6 +99,8 @@
   }
 </script>
 
+<SearchBox view="market" placeholder="Search items…" />
+
 <div class="balance">
   <span>Credits: <strong>{formatCredits($game.credits)}</strong></span>
   <button class="sell-all" disabled={inventoryValue <= 0} onclick={sellEverything}>
@@ -111,7 +118,7 @@
         {isCollapsed($collapsed, 'market', group.id) ? '▸' : '▾'}
       </span>
     </button>
-    {#if !isCollapsed($collapsed, 'market', group.id)}
+    {#if query || !isCollapsed($collapsed, 'market', group.id)}
       {#each group.items as r (r.id)}
         <div class="row">
           <span class="what">{r.icon} {r.name}</span>

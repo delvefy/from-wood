@@ -32,10 +32,10 @@ const slug = (name: string) =>
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');
 
-// Small-node cost curve: ~25% more per step along a chain/fan, rounded.
+// Small-node cost curve: ~40% more per step along a chain/fan, rounded.
 const grow = (base: Record<string, number>, step: number): Record<string, number> =>
   Object.fromEntries(
-    Object.entries(base).map(([id, n]) => [id, Math.max(1, Math.round(n * 1.25 ** step))]),
+    Object.entries(base).map(([id, n]) => [id, Math.max(1, Math.round(n * 1.4 ** step))]),
   );
 
 function smallMeta(eff: SmallEffect): { description: string; effects: TechEffect[] } {

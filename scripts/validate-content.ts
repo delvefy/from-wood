@@ -117,6 +117,65 @@ for (const res of RESOURCES) {
   }
 }
 
+// ---- Cost feasibility --------------------------------------------------------------
+// Simulate actual play: a node becomes researchable once all its prerequisites
+// are researched AND every resource in its cost is obtainable — gatherable, or
+// craftable through recipes unlocked so far (inputs recursively obtainable).
+// Catches deadlocks like a node whose cost item only unlocks behind that node.
+{
+  const researched = new Set<string>();
+  const recipesOn = new Set(RECIPES.filter((r) => r.unlockedByDefault).map((r) => r.id));
+  const obtainable = new Set(
+    RESOURCES.filter((r) => r.unlockedByDefault && r.harvestAmount > 0).map((r) => r.id),
+  );
+
+  // Fixpoint over obtainable resources given the currently unlocked recipes.
+  const propagate = () => {
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const rec of RECIPES) {
+        if (!recipesOn.has(rec.id)) continue;
+        if (!Object.keys(rec.inputs).every((id) => obtainable.has(id))) continue;
+        for (const id of Object.keys(rec.outputs)) {
+          if (!obtainable.has(id)) {
+            obtainable.add(id);
+            changed = true;
+          }
+        }
+      }
+    }
+  };
+
+  let progressed = true;
+  while (progressed) {
+    progressed = false;
+    propagate();
+    for (const node of TECH) {
+      if (researched.has(node.id)) continue;
+      if (!node.requires.every((req) => researched.has(req))) continue;
+      if (!Object.keys(node.cost).every((id) => obtainable.has(id))) continue;
+      researched.add(node.id);
+      for (const effect of node.effects) {
+        if (effect.kind === 'unlockRecipe') recipesOn.add(effect.id);
+        if (effect.kind === 'unlockResource') obtainable.add(effect.id);
+      }
+      progressed = true;
+    }
+  }
+
+  for (const node of TECH) {
+    if (researched.has(node.id)) continue;
+    const blockedReqs = node.requires.filter((req) => !researched.has(req));
+    if (blockedReqs.length > 0) {
+      errors.push(`tech ${node.id} is unreachable: blocked prerequisites ${blockedReqs.join(', ')}`);
+    } else {
+      const missing = Object.keys(node.cost).filter((id) => !obtainable.has(id));
+      errors.push(`tech ${node.id} is unreachable: cost needs unobtainable ${missing.join(', ')}`);
+    }
+  }
+}
+
 // ---- Tree layout -----------------------------------------------------------------
 // Nodes render ~108x90px centered on (x, y); generated paths/clusters can
 // collide when specs move. Warn on any pair closer than 100px.

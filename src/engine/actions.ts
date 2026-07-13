@@ -190,13 +190,15 @@ export function cancelResearch(techId: TechId): void {
 
 // ---- Economy -------------------------------------------------------------------
 
-export function sellEverything(): void {
+// `fraction` sells that share of each stack (0..1), rounded down per resource.
+export function sellEverything(fraction = 1): void {
   game.update((s) => {
     let gained = 0;
+    const f = Math.min(1, Math.max(0, fraction));
     const priceFactor = sellPriceFactor(s);
     for (const id of s.unlockedResources) {
       const def = RESOURCE_BY_ID[id];
-      const n = Math.floor(s.resources[id] ?? 0);
+      const n = Math.floor(Math.floor(s.resources[id] ?? 0) * f);
       if (!def || n <= 0) continue;
       s.resources[id] = (s.resources[id] ?? 0) - n;
       gained += n * def.baseSellPrice * priceFactor;

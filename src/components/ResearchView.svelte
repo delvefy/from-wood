@@ -195,6 +195,42 @@
   const activeNode = $derived(
     $game.researchQueue.length > 0 ? TECH_BY_ID[$game.researchQueue[0]] : null,
   );
+
+  // Nodes the player can start right now: prereqs met AND affordable.
+  const readyNodes = $derived(
+    TECH.filter((n) => status(n) === 'available' && canAfford($game, n.cost)),
+  );
+
+  // Cycles through ready nodes so repeated taps tour all of them.
+  let readyCycle = 0;
+  function jumpToReady() {
+    if (readyNodes.length === 0) return;
+    focusTech.set(readyNodes[readyCycle++ % readyNodes.length].id);
+  }
+
+  // ---- Queue summary -----------------------------------------------------------
+  // The queue can hold dozens of nodes; rendering them all as chips buried the
+  // tree. Collapsed by default to a one-line summary; expands to a scrollable
+  // list capped in height. Tapping a row jumps the camera to that node.
+  let queueOpen = $state(false);
+
+  const queuedIds = $derived($game.researchQueue.slice(1));
+
+  const queueTotalSeconds = $derived(
+    (activeNode ? activeNode.researchTimeSeconds - $game.researchProgress : 0) +
+      queuedIds.reduce((sum, id) => sum + (TECH_BY_ID[id]?.researchTimeSeconds ?? 0), 0),
+  );
+
+  function jumpToNode(id: string) {
+    focusTech.set(id);
+  }
+
+  function clearQueue() {
+    // cancelResearch cascades to dependents and no-ops on already-removed ids,
+    // so cancelling each queued id (snapshot, not live store) clears everything.
+    for (const id of [...queuedIds]) cancelResearch(id);
+    queueOpen = false;
+  }
 </script>
 
 <div class="wrap">
@@ -205,14 +241,33 @@
         <span class="muted">{formatDuration(Math.ceil(activeNode.researchTimeSeconds - $game.researchProgress))}</span>
       </div>
       <ProgressBar value={$game.researchProgress} max={activeNode.researchTimeSeconds} />
-      {#if $game.researchQueue.length > 1}
-        <div class="queue">
-          {#each $game.researchQueue.slice(1) as id, i (id)}
-            <button class="qchip" onclick={() => cancelResearch(id)}>
-              {i + 2}. {TECH_BY_ID[id]?.name ?? id} ✕
-            </button>
-          {/each}
+      {#if queuedIds.length > 0}
+        <div class="queue-bar">
+          <button class="queue-toggle" onclick={() => (queueOpen = !queueOpen)}>
+            <span class="caret" class:open={queueOpen}>▸</span>
+            {queuedIds.length} queued · ~{formatDuration(Math.ceil(queueTotalSeconds))} total
+          </button>
+          {#if queueOpen}
+            <button class="queue-clear" onclick={clearQueue}>Clear all</button>
+          {/if}
         </div>
+        {#if queueOpen}
+          <ol class="queue-list">
+            {#each queuedIds as id, i (id)}
+              {@const node = TECH_BY_ID[id]}
+              <li class="qrow">
+                <button class="qname" title="Show in tree" onclick={() => jumpToNode(id)}>
+                  <span class="qnum">{i + 2}.</span>
+                  {node?.name ?? id}
+                </button>
+                <span class="qtime muted">{node ? formatDuration(node.researchTimeSeconds) : ''}</span>
+                <button class="qcancel" aria-label="Cancel {node?.name ?? id}" onclick={() => cancelResearch(id)}>
+                  ✕
+                </button>
+              </li>
+            {/each}
+          </ol>
+        {/if}
       {/if}
     {:else}
       <span class="muted">🔬 Research slot idle — tap an available node to queue it.</span>
@@ -246,11 +301,13 @@
       </svg>
       {#each TECH as node (node.id)}
         {@const st = status(node)}
+        {@const ready = st === 'available' && canAfford($game, node.cost)}
         <!-- A div, not a button: cost chips inside must stay tappable even when
              the node itself is locked/unaffordable (disabled buttons swallow
              child clicks). tap() guards status and affordability instead. -->
         <div
           class="node {st} {node.branch}"
+          class:ready
           class:major={node.major}
           class:flash={flashId === node.id}
           role="button"
@@ -296,6 +353,8 @@
               {formatDuration(Math.ceil(node.researchTimeSeconds - $game.researchProgress))}… ✕
             {:else if st === 'queued'}
               Queued #{$game.researchQueue.indexOf(node.id) + 1} ✕
+            {:else if ready}
+              ▶ Tap to research · {formatDuration(node.researchTimeSeconds)}
             {:else}
               ⏱ {formatDuration(node.researchTimeSeconds)}
             {/if}
@@ -310,6 +369,12 @@
     <span class="legend magic-l">✦ Magic</span>
     <span class="legend magitech-l">⚡ Magitech</span>
     <span class="legend tech-l">⚙ Tech</span>
+
+    {#if readyNodes.length > 0}
+      <button class="ready-jump" onclick={jumpToReady}>
+        ▶ {readyNodes.length} ready — show me
+      </button>
+    {/if}
 
     <div class="zoom-controls">
       <button aria-label="Zoom in" onclick={() => zoomAt(vw / 2, vh / 2, zoom * 1.25)}>+</button>
@@ -348,18 +413,89 @@
     align-items: center;
   }
 
-  .queue {
+  .queue-bar {
     display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
   }
 
-  .qchip {
+  .queue-toggle {
     min-height: 32px;
-    padding: 2px 12px;
+    padding: 2px 10px;
     border-radius: 999px;
     font-size: 0.75rem;
     color: var(--muted);
+  }
+
+  .caret {
+    display: inline-block;
+    transition: transform 0.15s ease;
+  }
+
+  .caret.open {
+    transform: rotate(90deg);
+  }
+
+  .queue-clear {
+    min-height: 32px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    color: var(--danger);
+  }
+
+  .queue-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    max-height: min(200px, 28vh);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-top: 1px solid var(--border);
+  }
+
+  .qrow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  }
+
+  .qname {
+    flex: 1;
+    min-width: 0;
+    min-height: 34px;
+    padding: 2px 4px;
+    border: none;
+    background: none;
+    text-align: left;
+    font-size: 0.78rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .qnum {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .qtime {
+    flex: none;
+    font-size: 0.7rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .qcancel {
+    flex: none;
+    width: 34px;
+    min-height: 34px;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--muted);
+    font-size: 0.8rem;
   }
 
   .viewport {
@@ -475,7 +611,8 @@
   }
 
   .node.locked {
-    opacity: 0.45;
+    opacity: 0.35;
+    filter: saturate(0.4);
   }
 
   .node.owned {
@@ -487,9 +624,43 @@
     );
   }
 
+  /* Prereqs met but can't afford it yet: hint of accent, no glow, so the eye
+     goes to the nodes that are actually actionable. */
   .node.available {
-    border-color: var(--accent);
-    box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 40%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  }
+
+  /* Prereqs met AND affordable: the loudest thing on the canvas. */
+  .node.available.ready {
+    border: 2px solid var(--accent);
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent) 14%, var(--panel)),
+      var(--panel)
+    );
+    animation: ready-pulse 1.8s ease-in-out infinite;
+  }
+
+  @keyframes ready-pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 35%, transparent);
+    }
+    50% {
+      box-shadow: 0 0 24px color-mix(in srgb, var(--accent) 80%, transparent);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .node.available.ready {
+      animation: none;
+      box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 55%, transparent);
+    }
+  }
+
+  .node.ready .tcost {
+    color: var(--accent);
+    font-weight: 600;
   }
 
   .node.active {
@@ -502,8 +673,10 @@
     border-style: dashed;
   }
 
-  /* Pulse drawing the eye to a node jumped to from a locked-item hint. */
-  .node.flash {
+  /* Pulse drawing the eye to a jumped-to node. The .viewport prefix keeps it
+     more specific than .node.available.ready, whose idle pulse would
+     otherwise win and swallow this one-shot flash. */
+  .viewport .node.flash {
     animation: node-flash 0.85s ease-in-out 3;
   }
 
@@ -591,6 +764,21 @@
   .legend.tech-l {
     right: 8px;
     color: var(--tech);
+  }
+
+  .ready-jump {
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    min-height: 36px;
+    padding: 4px 14px;
+    border: 1px solid var(--accent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 16%, var(--panel));
+    color: var(--accent);
+    font-size: 0.75rem;
+    font-weight: 600;
+    box-shadow: var(--shadow);
   }
 
   .zoom-controls {

@@ -53,11 +53,22 @@
   );
 
   const priceFactor = $derived(sellPriceFactor($game));
-  const inventoryValue = $derived(
+
+  // Sell percentage sliders: one global, one per material (default 100%).
+  let sellPct = $state(100);
+  const rowPct = $state<Record<string, number>>({});
+
+  // Units a given percentage sells — mirrors sellEverything's per-stack floor
+  // so the previewed credits always equal what the sale actually pays.
+  function unitsAt(id: string, pct: number): number {
+    return Math.floor(Math.floor($game.resources[id] ?? 0) * (pct / 100));
+  }
+
+  const sellAllValue = $derived(
     RESOURCES.reduce(
       (sum, r) =>
         $game.unlockedResources.includes(r.id)
-          ? sum + Math.floor($game.resources[r.id] ?? 0) * r.baseSellPrice * priceFactor
+          ? sum + unitsAt(r.id, sellPct) * r.baseSellPrice * priceFactor
           : sum,
       0,
     ),
@@ -103,10 +114,23 @@
 <SearchBox view="market" placeholder="Search items…" />
 
 <div class="balance">
-  <span>Credits: <strong>{formatCredits($game.credits)}</strong></span>
-  <button class="sell-all" disabled={inventoryValue <= 0} onclick={sellEverything}>
-    Sell everything{inventoryValue > 0 ? ` +${formatCredits(inventoryValue)}` : ''}
-  </button>
+  <div class="balance-top">
+    <span>Credits: <strong>{formatCredits($game.credits)}</strong></span>
+    <button class="sell-all" disabled={sellAllValue <= 0} onclick={() => sellEverything(sellPct / 100)}>
+      Sell {sellPct}%{sellAllValue > 0 ? ` +${formatCredits(sellAllValue)}` : ''}
+    </button>
+  </div>
+  <div class="pct-row">
+    <input
+      type="range"
+      min="0"
+      max="100"
+      step="5"
+      bind:value={sellPct}
+      aria-label="Percentage of all inventory to sell"
+    />
+    <span class="pct muted">{sellPct}%</span>
+  </div>
 </div>
 
 <h2>Sell</h2>
@@ -121,15 +145,28 @@
     </button>
     {#if query || !isCollapsed($collapsed, 'market', group.id)}
       {#each group.items as r (r.id)}
-        <div class="row">
+        {@const pct = rowPct[r.id] ?? 100}
+        {@const units = unitsAt(r.id, pct)}
+        {@const value = units * r.baseSellPrice * priceFactor}
+        <div class="row sell">
           <span class="what"><Icon id={r.id} /> {r.name}</span>
           <span class="have">{formatNumber($game.resources[r.id] ?? 0)}</span>
           <span class="price">{formatCredits(r.baseSellPrice * priceFactor)}/u</span>
-          <span class="btns">
-            <button disabled={($game.resources[r.id] ?? 0) < 1} onclick={() => sellResource(r.id, 1)}>1</button>
-            <button disabled={($game.resources[r.id] ?? 0) < 1} onclick={() => sellResource(r.id, 10)}>10</button>
-            <button disabled={($game.resources[r.id] ?? 0) < 1} onclick={() => sellResource(r.id, 'all')}>All</button>
-          </span>
+          <div class="sell-ctl">
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="5"
+              value={pct}
+              aria-label="Percentage of {r.name} to sell"
+              oninput={(e) => (rowPct[r.id] = +e.currentTarget.value)}
+            />
+            <span class="pct muted">{pct}%</span>
+            <button class="sell-btn" disabled={units < 1} onclick={() => sellResource(r.id, units)}>
+              Sell {units > 0 ? `${formatNumber(units)} +${formatCredits(value)}` : '—'}
+            </button>
+          </div>
         </div>
       {/each}
     {/if}
@@ -182,9 +219,8 @@
 <style>
   .balance {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
+    flex-direction: column;
+    gap: 6px;
     padding: 10px 12px;
     background: var(--panel);
     border: 1px solid var(--gold);
@@ -199,6 +235,13 @@
     font-variant-numeric: tabular-nums;
   }
 
+  .balance-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
   .sell-all {
     background: var(--grad-primary);
     border: none;
@@ -206,6 +249,28 @@
     font-weight: 600;
     padding: 0 14px;
     white-space: nowrap;
+  }
+
+  .pct-row,
+  .sell-ctl {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  input[type='range'] {
+    flex: 1;
+    min-width: 0;
+    min-height: 32px; /* comfortable touch target */
+    margin: 0;
+    accent-color: var(--gold);
+  }
+
+  .pct {
+    min-width: 4ch;
+    text-align: right;
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
   }
 
   .list {
@@ -261,14 +326,21 @@
     white-space: nowrap;
   }
 
-  .btns {
-    display: flex;
-    gap: 6px;
+  /* Name/stock/price on the first line, slider + sell on the second. */
+  .row.sell {
+    flex-wrap: wrap;
   }
 
-  .btns button {
-    min-width: 44px;
-    padding: 0 8px;
+  .sell-ctl {
+    flex-basis: 100%;
+  }
+
+  .sell-btn {
+    min-width: 108px;
+    padding: 0 10px;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
   }
 
   .row.worker {

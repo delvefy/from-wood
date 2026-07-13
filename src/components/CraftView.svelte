@@ -120,32 +120,32 @@
                   <span class="icon"><Icon id={outputId(recipe)} /></span>
                   <span class="name">{recipe.name}</span>
                 </div>
+                <!-- Icon-only chips keep the recipe to one row; the material
+                     name lives in the tooltip and (with links on) the tap. -->
                 <div class="io">
                   {#each Object.entries(recipe.inputs) as [id, n] (id)}
+                    {@const have = $game.resources[id] ?? 0}
+                    {@const label = `${RESOURCE_BY_ID[id]?.name ?? id} — need ${n}, have ${formatNumber(have)}`}
                     {#if $settings.materialLinks}
                       <button
                         class="item link"
-                        class:short={($game.resources[id] ?? 0) < n}
-                        title="Go to {RESOURCE_BY_ID[id]?.name}"
+                        class:short={have < n}
+                        title={label}
+                        aria-label={label}
                         onclick={() => openMaterial(id)}
                       >
-                        <Icon {id} />{n}
-                        {RESOURCE_BY_ID[id]?.name}
-                        <small>({formatNumber($game.resources[id] ?? 0)})</small>
+                        <Icon {id} />{n}<small>/{formatNumber(have)}</small>
                       </button>
                     {:else}
-                      <span class="item" class:short={($game.resources[id] ?? 0) < n}>
-                        <Icon {id} />{n}
-                        {RESOURCE_BY_ID[id]?.name}
-                        <small>({formatNumber($game.resources[id] ?? 0)})</small>
+                      <span class="item" class:short={have < n} title={label}>
+                        <Icon {id} />{n}<small>/{formatNumber(have)}</small>
                       </span>
                     {/if}
                   {/each}
                   <span class="arrow">→</span>
                   {#each Object.entries(recipe.outputs) as [id, n] (id)}
-                    <span class="item out">
+                    <span class="item out" title={RESOURCE_BY_ID[id]?.name}>
                       <Icon {id} />{formatNumber(n * $game.multipliers.craftOutput)}
-                      {RESOURCE_BY_ID[id]?.name}
                     </span>
                   {/each}
                 </div>
@@ -153,29 +153,24 @@
                   <div class="raw muted">
                     raw ≈
                     {#each raw as [id, n], i (id)}{#if i}&nbsp;·
-                      {/if}<Icon {id} />{formatNumber(Math.ceil(n))} {RESOURCE_BY_ID[id]?.name}{/each}
+                      {/if}<span title={RESOURCE_BY_ID[id]?.name}><Icon {id} />{formatNumber(Math.ceil(n))}</span>{/each}
                   </div>
                 {/if}
                 <div class="crew">
                   <Icon id={CRAFTER.icon} tint={false} /> <strong>{assigned}</strong>
                   {#if assigned > 0}
-                    <span class="muted">
-                      ·
+                    <span class="muted rate">
                       {#each Object.entries(recipe.outputs) as [id, n] (id)}
                         +<Icon {id} />{formatNumber(assigned * n * $game.multipliers.craftOutput)}
                       {/each}
                       / {formatNumber(duration)}s
                     </span>
+                    <ProgressBar value={$game.craftProgress[recipe.id] ?? 0} max={duration} />
+                    <span class="left muted">{Math.ceil(duration - ($game.craftProgress[recipe.id] ?? 0))}s</span>
                   {:else}
                     <span class="muted">· hold ❯ to assign · ⏱ {formatNumber(duration)}s</span>
                   {/if}
                 </div>
-                {#if assigned > 0}
-                  <div class="progress">
-                    <ProgressBar value={$game.craftProgress[recipe.id] ?? 0} max={duration} />
-                    <span class="left muted">{Math.ceil(duration - ($game.craftProgress[recipe.id] ?? 0))}s</span>
-                  </div>
-                {/if}
               </div>
               <button
                 class="chev add"
@@ -358,9 +353,9 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 4px;
+    gap: 3px;
     min-width: 0;
-    padding: 9px 8px;
+    padding: 7px 8px;
     text-align: center;
   }
 
@@ -386,13 +381,28 @@
     justify-content: center;
   }
 
+  /* Single footer line: crafter count · rate · inline progress · time left. */
   .crew {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    width: 100%;
     font-size: 0.8rem;
   }
 
   .crew strong {
     font-size: 0.95rem;
     font-variant-numeric: tabular-nums;
+  }
+
+  .rate {
+    white-space: nowrap;
+  }
+
+  .crew :global(.track) {
+    flex: 1;
+    min-width: 40px;
   }
 
   .head {
@@ -413,12 +423,12 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 6px;
-    font-size: 0.9rem;
+    gap: 5px;
+    font-size: 0.85rem;
   }
 
   .item {
-    padding: 3px 9px;
+    padding: 2px 8px;
     background: var(--panel-2);
     border-radius: 999px;
     white-space: nowrap;
@@ -456,18 +466,6 @@
 
   .raw {
     font-size: 0.75rem;
-  }
-
-  .progress {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    margin-top: 2px;
-  }
-
-  .progress :global(.track) {
-    flex: 1;
   }
 
   .left {

@@ -21,3 +21,12 @@ export function openMaterial(resourceId: string): void {
   setSearch(tab, resource.name);
   activeTab.set(tab);
 }
+
+// A tech node id another view asked the Research tree to center on (locked
+// item hints). ResearchView consumes it and resets it to null.
+export const focusTech = writable<string | null>(null);
+
+export function openTech(techId: string): void {
+  focusTech.set(techId);
+  activeTab.set('research');
+}

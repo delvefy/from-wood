@@ -226,5 +226,12 @@
   "leyline_nexus": "delapouite/crystal-shrine",
   "aurora_beacon": "delapouite/lighthouse",
   "philosophers_engine": "lorc/clockwork",
-  "arcane_citadel": "pepijn-poolman/elven-castle"
+  "arcane_citadel": "pepijn-poolman/elven-castle",
+  "ui_gather": "lorc/axe-in-stump",
+  "ui_craft": "lorc/anvil-impact",
+  "ui_research": "lorc/materials-science",
+  "ui_market": "delapouite/two-coins",
+  "ui_settings": "delapouite/settings-knobs",
+  "worker_gatherer": "delapouite/farmer",
+  "worker_crafter": "delapouite/blacksmith"
 }

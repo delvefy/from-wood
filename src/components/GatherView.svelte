@@ -11,7 +11,7 @@
   import { game } from '../engine/state';
   import { formatNumber } from '../util/format';
   import { holdRepeat } from '../util/holdRepeat';
-  import { searchFilters } from '../util/nav';
+  import { openTech, searchFilters } from '../util/nav';
 
   const query = $derived(($searchFilters.gather ?? '').trim().toLowerCase());
   const gatherable = $derived(
@@ -50,7 +50,7 @@
 <SearchBox view="gather" placeholder="Search materials…" />
 
 <button class="slots" onclick={() => (manage = !manage)}>
-  {GATHERER.icon} Gatherers: <strong>{idle}</strong> idle / {totalGatherers($game)} total
+  <Icon id={GATHERER.icon} tint={false} /> Gatherers: <strong>{idle}</strong> idle / {totalGatherers($game)} total
   <span class="muted">— tap to manage {manage ? '▾' : '▸'}</span>
 </button>
 {#if manage}
@@ -81,7 +81,7 @@
           <span class="amount">{formatNumber($game.resources[r.id] ?? 0)}</span>
         </div>
         <div class="crew">
-          {GATHERER.icon} <strong>{assigned}</strong>
+          <Icon id={GATHERER.icon} tint={false} /> <strong>{assigned}</strong>
           {#if assigned > 0}
             <span class="muted">· +{formatNumber(yield_)} / {formatNumber(cycle)}s</span>
           {:else}
@@ -115,14 +115,14 @@
           <span class="icon grey"><Icon id={r.id} /></span>
           <span class="name">{r.name}</span>
         </div>
-        <span class="hint muted">
-          {#if tech}
+        {#if tech}
+          <button class="hint muted link" title="Show {tech.name} in the research tree" onclick={() => openTech(tech.id)}>
             Research <strong>{tech.name}</strong>
             <span class="branch {tech.branch}">{branchLabel[tech.branch]}</span>
-          {:else}
-            Unlock not available yet
-          {/if}
-        </span>
+          </button>
+        {:else}
+          <span class="hint muted">Unlock not available yet</span>
+        {/if}
       </div>
     {/each}
   {/if}
@@ -343,6 +343,21 @@
     display: flex;
     align-items: center;
     gap: 6px;
+  }
+
+  /* The locked hint is a tap target that jumps to the tech node. */
+  button.hint {
+    min-height: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    font: inherit;
+    text-align: left;
+  }
+
+  .hint.link strong {
+    text-decoration: underline dotted;
+    text-underline-offset: 2px;
   }
 
   .branch {

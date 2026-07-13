@@ -1,18 +1,20 @@
 <script lang="ts">
+  import Icon from './Icon.svelte';
   import { activeTab, type Tab } from '../util/nav';
 
+  // `icon` is an ICON_PATHS id (icon-map.json), rendered via <Icon>.
   const tabs: { id: Tab; icon: string; label: string }[] = [
-    { id: 'gather', icon: '🪵', label: 'Gather' },
-    { id: 'craft', icon: '🛠️', label: 'Craft' },
-    { id: 'research', icon: '🔬', label: 'Research' },
-    { id: 'market', icon: '💲', label: 'Market' },
+    { id: 'gather', icon: 'ui_gather', label: 'Gather' },
+    { id: 'craft', icon: 'ui_craft', label: 'Craft' },
+    { id: 'research', icon: 'ui_research', label: 'Research' },
+    { id: 'market', icon: 'ui_market', label: 'Market' },
   ];
 </script>
 
 <nav>
   {#each tabs as t (t.id)}
     <button class:active={$activeTab === t.id} onclick={() => activeTab.set(t.id)}>
-      <span class="icon">{t.icon}</span>
+      <span class="icon"><Icon id={t.icon} tint={false} /></span>
       <span class="label">{t.label}</span>
     </button>
   {/each}

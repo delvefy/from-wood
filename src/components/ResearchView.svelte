@@ -8,7 +8,8 @@
   import { game } from '../engine/state';
   import { canAfford } from '../engine/tick';
   import type { TechNode } from '../engine/types';
-  import { openMaterial } from '../util/nav';
+  import { formatDuration } from '../util/format';
+  import { focusTech, openMaterial } from '../util/nav';
   import { settings } from '../util/settings';
 
   // ---- Camera: world point at the viewport center, plus zoom -----------------
@@ -73,6 +74,24 @@
     cam.y = -60;
     zoom = 1;
   }
+
+  // Another view asked us to show a node (locked-item "Research X" links):
+  // center the camera on it and pulse it briefly so the eye lands there.
+  let flashId = $state<string | null>(null);
+  $effect(() => {
+    const id = $focusTech;
+    if (!id) return;
+    focusTech.set(null);
+    const node = TECH_BY_ID[id];
+    if (!node) return;
+    cam.x = node.x;
+    cam.y = node.y;
+    zoom = Math.max(zoom, 1);
+    flashId = id;
+    // No cleanup: resetting focusTech above re-runs this effect immediately,
+    // and a cleanup would cancel the timer before the pulse plays out.
+    setTimeout(() => (flashId = null), 2500);
+  });
 
   // ---- Pan / pinch via pointer events -----------------------------------------
   // One pointer pans; two pointers pinch-zoom around their midpoint. `moved`
@@ -183,7 +202,7 @@
     {#if activeNode}
       <div class="slot-head">
         <span>🔬 Researching: <strong>{activeNode.name}</strong></span>
-        <span class="muted">{Math.ceil(activeNode.researchTimeSeconds - $game.researchProgress)}s</span>
+        <span class="muted">{formatDuration(Math.ceil(activeNode.researchTimeSeconds - $game.researchProgress))}</span>
       </div>
       <ProgressBar value={$game.researchProgress} max={activeNode.researchTimeSeconds} />
       {#if $game.researchQueue.length > 1}
@@ -233,6 +252,7 @@
         <div
           class="node {st} {node.branch}"
           class:major={node.major}
+          class:flash={flashId === node.id}
           role="button"
           tabindex="0"
           style="left: {node.x}px; top: {node.y}px"
@@ -273,11 +293,11 @@
             {#if st === 'owned'}
               ✓ Done
             {:else if st === 'active'}
-              {Math.ceil(node.researchTimeSeconds - $game.researchProgress)}s… ✕
+              {formatDuration(Math.ceil(node.researchTimeSeconds - $game.researchProgress))}… ✕
             {:else if st === 'queued'}
               Queued #{$game.researchQueue.indexOf(node.id) + 1} ✕
             {:else}
-              ⏱ {node.researchTimeSeconds}s
+              ⏱ {formatDuration(node.researchTimeSeconds)}
             {/if}
           </span>
           {#if st === 'active'}
@@ -480,6 +500,18 @@
   .node.queued {
     border-color: var(--science);
     border-style: dashed;
+  }
+
+  /* Pulse drawing the eye to a node jumped to from a locked-item hint. */
+  .node.flash {
+    animation: node-flash 0.85s ease-in-out 3;
+  }
+
+  @keyframes node-flash {
+    50% {
+      border-color: var(--accent);
+      box-shadow: 0 0 22px var(--accent);
+    }
   }
 
   .tname {

@@ -140,7 +140,7 @@
 {#each hireRows as row (row.config.name)}
   <div class="row worker">
     <span class="what">
-      {row.config.icon} {row.config.name}s <span class="muted">×{row.total} ({row.idle} idle)</span>
+      <Icon id={row.config.icon} tint={false} /> {row.config.name}s <span class="muted">×{row.total} ({row.idle} idle)</span>
     </span>
     <span class="desc muted">{row.config.description}</span>
     <button

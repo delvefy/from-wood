@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from './Icon.svelte';
   import { game } from '../engine/state';
   import { totalValue } from '../engine/worth';
   import { formatCredits } from '../util/format';
@@ -17,7 +18,7 @@
     aria-label="Open settings"
     title="Settings"
   >
-    ⚙️
+    <Icon id="ui_settings" tint={false} />
   </button>
 </header>
 

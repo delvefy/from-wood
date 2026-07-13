@@ -17,7 +17,7 @@
   import { collapsed, isCollapsed, toggleCollapsed } from '../util/collapse';
   import { formatNumber } from '../util/format';
   import { holdRepeat } from '../util/holdRepeat';
-  import { openMaterial, searchFilters } from '../util/nav';
+  import { openMaterial, openTech, searchFilters } from '../util/nav';
   import { rawCost } from '../util/rawCost';
   import { settings } from '../util/settings';
   import type { Recipe } from '../engine/types';
@@ -37,12 +37,13 @@
 
   const query = $derived(($searchFilters.craft ?? '').trim().toLowerCase());
 
-  // A recipe matches on its own name or on any output material's name, so
-  // material links land on the recipes that produce that material.
+  // A recipe matches on its own name or on any output OR input material's
+  // name — filtering for an item surfaces both the recipes that produce it
+  // and the recipes that consume it.
   function matchesQuery(recipe: Recipe, q: string): boolean {
     if (!q) return true;
     if (recipe.name.toLowerCase().includes(q)) return true;
-    return Object.keys(recipe.outputs).some((id) =>
+    return [...Object.keys(recipe.outputs), ...Object.keys(recipe.inputs)].some((id) =>
       (RESOURCE_BY_ID[id]?.name ?? '').toLowerCase().includes(q),
     );
   }
@@ -80,7 +81,7 @@
 {:else}
   <SearchBox view="craft" placeholder="Search recipes & materials…" />
   <button class="slots" onclick={() => (manage = !manage)}>
-    {CRAFTER.icon} Crafters: <strong>{idle}</strong> idle / {totalCrafters($game)} total
+    <Icon id={CRAFTER.icon} tint={false} /> Crafters: <strong>{idle}</strong> idle / {totalCrafters($game)} total
     <span class="muted">— tap to manage {manage ? '▾' : '▸'}</span>
   </button>
   {#if manage}
@@ -156,7 +157,7 @@
                   </div>
                 {/if}
                 <div class="crew">
-                  {CRAFTER.icon} <strong>{assigned}</strong>
+                  <Icon id={CRAFTER.icon} tint={false} /> <strong>{assigned}</strong>
                   {#if assigned > 0}
                     <span class="muted">
                       ·
@@ -193,14 +194,14 @@
               <span class="rname"><span class="grey"><Icon id={outputId(recipe)} /></span> {recipe.name}</span>
               <span class="time muted">🔒</span>
             </div>
-            <span class="hint muted">
-              {#if tech}
+            {#if tech}
+              <button class="hint muted link" title="Show {tech.name} in the research tree" onclick={() => openTech(tech.id)}>
                 Research <strong>{tech.name}</strong>
                 <span class="branch {tech.branch}">{branchLabel[tech.branch]}</span>
-              {:else}
-                Unlock not available yet
-              {/if}
-            </span>
+              </button>
+            {:else}
+              <span class="hint muted">Unlock not available yet</span>
+            {/if}
           </div>
         {/each}
       </div>
@@ -491,6 +492,21 @@
     display: flex;
     align-items: center;
     gap: 6px;
+  }
+
+  /* The locked hint is a tap target that jumps to the tech node. */
+  button.hint {
+    min-height: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    font: inherit;
+    text-align: left;
+  }
+
+  .hint.link strong {
+    text-decoration: underline dotted;
+    text-underline-offset: 2px;
   }
 
   .branch {

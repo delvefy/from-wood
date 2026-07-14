@@ -1,7 +1,7 @@
 import { writable } from 'svelte/store';
 import { RESOURCE_BY_ID } from '../content/resources';
 
-export type Tab = 'gather' | 'craft' | 'research' | 'market' | 'settings';
+export type Tab = 'gather' | 'craft' | 'research' | 'market' | 'tournament' | 'settings';
 
 export const activeTab = writable<Tab>('gather');
 

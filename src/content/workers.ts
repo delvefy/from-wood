@@ -13,13 +13,14 @@ export const GATHERER: WorkerConfig = {
   startingCount: 1,
 };
 
-// Crafters are far pricier than gatherers and scale steeply, soft-capping the
-// crew at ~15-20 unless credit income keeps up.
+// Crafters are pegged at ~10 gatherers apiece: growth is the gatherer's
+// growth to the 10th power (1.15^10 ≈ 4), so the Nth crafter always costs
+// about as much as gatherers 10N-9..10N. Soft-caps the crew at ~8-10.
 export const CRAFTER: WorkerConfig = {
   name: 'Crafter',
   icon: 'worker_crafter',
   description: 'Each crafter fills one craft slot and can be assigned to a recipe.',
-  hireCost: 50,
-  hireCostGrowth: 1.4,
+  hireCost: 100,
+  hireCostGrowth: 4,
   startingCount: 1,
 };

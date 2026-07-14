@@ -13,6 +13,7 @@
     "fetch-icons": "node scripts/fetch-game-icons.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.110.5",
     "idb-keyval": "^6.2.2"
   },
   "devDependencies": {

@@ -33,7 +33,7 @@ export const PREMIUM: PremiumItem[] = [
     name: 'Gatherer Pack',
     icon: '📦',
     description: '+10 gatherers. Does not raise normal hire prices.',
-    priceUsd: 2.99,
+    priceUsd: 5,
     unique: false,
   },
   {
@@ -41,7 +41,7 @@ export const PREMIUM: PremiumItem[] = [
     name: 'Crafter Pack',
     icon: '🎁',
     description: '+1 crafter. Does not raise normal hire prices.',
-    priceUsd: 1.99,
+    priceUsd: 5,
     unique: false,
   },
 ];

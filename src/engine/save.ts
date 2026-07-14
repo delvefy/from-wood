@@ -1,12 +1,20 @@
 import { del as idbDel, get as idbGet, set as idbSet } from 'idb-keyval';
 import { get } from 'svelte/store';
+import { writable } from 'svelte/store';
 import { computeMultipliers } from './multipliers';
+import { gameMode, type GameMode } from './mode';
 import { createInitialState, game } from './state';
 import { tick } from './tick';
 import { resetTickClock } from './actions';
+import { clearTournamentMeta, getTournamentMeta } from './tournamentMeta';
 import type { GameState } from './types';
 
-const SAVE_KEY = 'from-wood-save-v2';
+// One save slot per mode: the village and the current tournament run are
+// fully independent games sharing the same engine.
+const SAVE_KEYS: Record<GameMode, string> = {
+  main: 'from-wood-save-v2',
+  tournament: 'from-wood-tournament-save-v1',
+};
 const LEGACY_SAVE_KEYS = ['from-wood-save-v1'];
 export const OFFLINE_CAP_SECONDS = 8 * 3600;
 
@@ -16,18 +24,28 @@ export interface OfflineReport {
   techCompleted: string[];
 }
 
+// Set by loadGame whenever catch-up produced something worth showing; the app
+// shell renders it as the "While you were away…" modal (also on slot switch).
+export const offlineReport = writable<OfflineReport | null>(null);
+
 export async function saveGame(): Promise<void> {
   game.update((s) => ({ ...s, lastSeen: Date.now() }));
   // Plain deep clone so IndexedDB never sees store-internal references.
-  await idbSet(SAVE_KEY, JSON.parse(JSON.stringify(get(game))));
+  await idbSet(SAVE_KEYS[get(gameMode)], JSON.parse(JSON.stringify(get(game))));
 }
 
-// Loads the save (if any), fast-forwards all timed work for the time away
-// (capped), and returns a summary of what was gained.
+// Loads the active slot's save (if any), fast-forwards all timed work for the
+// time away (capped), and returns a summary of what was gained.
 export async function loadGame(): Promise<OfflineReport | null> {
   for (const key of LEGACY_SAVE_KEYS) void idbDel(key);
-  const saved = (await idbGet(SAVE_KEY)) as Partial<GameState> | undefined;
-  if (!saved) return null;
+  const mode = get(gameMode);
+  const saved = (await idbGet(SAVE_KEYS[mode])) as Partial<GameState> | undefined;
+  if (!saved) {
+    // An empty tournament slot starts fresh rather than leaking village state
+    // (normally unreachable: joining writes a fresh save before switching).
+    if (mode === 'tournament') game.set(createInitialState());
+    return null;
+  }
 
   const base = createInitialState();
   // Merge over the initial state so saves survive new content/fields, and
@@ -49,8 +67,14 @@ export async function loadGame(): Promise<OfflineReport | null> {
   };
 
   const now = Date.now();
+  // Tournament runs freeze at the finish line: catch-up never runs past it.
+  let horizon = now;
+  if (mode === 'tournament') {
+    const meta = getTournamentMeta();
+    if (meta) horizon = Math.min(now, meta.endsAt);
+  }
   const elapsed = Math.min(
-    Math.max(Math.floor((now - (saved.lastSeen ?? now)) / 1000), 0),
+    Math.max(Math.floor((horizon - (saved.lastSeen ?? horizon)) / 1000), 0),
     OFFLINE_CAP_SECONDS,
   );
 
@@ -72,11 +96,21 @@ export async function loadGame(): Promise<OfflineReport | null> {
 
   s.lastSeen = now;
   game.set(s);
+  if (report) offlineReport.set(report);
   return report;
 }
 
+// Called on tournament join: overwrite the tournament slot with a brand-new run.
+export async function writeFreshTournamentSave(): Promise<void> {
+  const s: GameState = { ...createInitialState(), lastSeen: Date.now() };
+  await idbSet(SAVE_KEYS.tournament, JSON.parse(JSON.stringify(s)));
+}
+
 export async function hardReset(): Promise<void> {
-  await idbDel(SAVE_KEY);
+  await idbDel(SAVE_KEYS.main);
+  await idbDel(SAVE_KEYS.tournament);
+  clearTournamentMeta();
+  gameMode.set('main');
   game.set(createInitialState());
   resetTickClock();
   await saveGame();

@@ -8,30 +8,38 @@
   import ResearchView from './components/ResearchView.svelte';
   import ResourceBar from './components/ResourceBar.svelte';
   import SettingsView from './components/SettingsView.svelte';
+  import TournamentView from './components/TournamentView.svelte';
   import { RESOURCE_BY_ID } from './content/resources';
   import { TECH_BY_ID } from './content/tech';
   import { resetTickClock, runTick } from './engine/actions';
-  import { loadGame, saveGame, type OfflineReport } from './engine/save';
+  import { gameMode } from './engine/mode';
+  import { loadGame, offlineReport, saveGame } from './engine/save';
+  import { maybeSubmitScore } from './engine/tournament';
   import { formatDuration, formatNumber } from './util/format';
   import { activeTab } from './util/nav';
 
   let ready = $state(false);
-  let offline = $state<OfflineReport | null>(null);
 
   onMount(() => {
     let tickTimer: number | undefined;
     let saveTimer: number | undefined;
 
     (async () => {
-      offline = await loadGame();
+      await loadGame();
       resetTickClock();
       ready = true;
-      tickTimer = window.setInterval(() => runTick(), 1000);
+      tickTimer = window.setInterval(() => {
+        runTick();
+        maybeSubmitScore();
+      }, 1000);
       saveTimer = window.setInterval(() => void saveGame(), 10_000);
     })();
 
     const onVisibility = () => {
-      if (document.visibilityState === 'hidden') void saveGame();
+      if (document.visibilityState === 'hidden') {
+        void saveGame();
+        maybeSubmitScore(true);
+      }
     };
     const onUnload = () => void saveGame();
     document.addEventListener('visibilitychange', onVisibility);
@@ -48,6 +56,11 @@
 
 {#if ready}
   <ResourceBar />
+  {#if $gameMode === 'tournament'}
+    <button class="tourney-banner" onclick={() => activeTab.set('tournament')}>
+      🏆 Tournament run — your village is safe at home
+    </button>
+  {/if}
   <main>
     {#if $activeTab === 'gather'}
       <GatherView />
@@ -55,6 +68,8 @@
       <CraftView />
     {:else if $activeTab === 'research'}
       <ResearchView />
+    {:else if $activeTab === 'tournament'}
+      <TournamentView />
     {:else if $activeTab === 'settings'}
       <SettingsView />
     {:else}
@@ -63,20 +78,20 @@
   </main>
   <BottomNav />
 
-  {#if offline}
+  {#if $offlineReport}
     <div class="overlay" role="dialog" aria-label="Offline progress">
       <div class="modal">
         <h2>While you were away…</h2>
-        <p class="muted">{formatDuration(offline.seconds)} of automated work</p>
+        <p class="muted">{formatDuration($offlineReport.seconds)} of automated work</p>
         <ul>
-          {#each offline.techCompleted as id (id)}
+          {#each $offlineReport.techCompleted as id (id)}
             <li>🔬 Researched {TECH_BY_ID[id]?.name ?? id}</li>
           {/each}
-          {#each Object.entries(offline.resourceGains) as [id, gain] (id)}
+          {#each Object.entries($offlineReport.resourceGains) as [id, gain] (id)}
             <li><Icon {id} /> +{formatNumber(gain)} {RESOURCE_BY_ID[id]?.name ?? id}</li>
           {/each}
         </ul>
-        <button class="primary" onclick={() => (offline = null)}>Nice</button>
+        <button class="primary" onclick={() => offlineReport.set(null)}>Nice</button>
       </div>
     </div>
   {/if}
@@ -90,6 +105,22 @@
     overflow-y: auto;
     overscroll-behavior: contain;
     padding: 12px;
+  }
+
+  .tourney-banner {
+    flex: none;
+    border: none;
+    border-bottom: 1px solid color-mix(in srgb, var(--gold) 45%, var(--border));
+    border-radius: 0;
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--gold) 22%, var(--panel)),
+      color-mix(in srgb, var(--magic) 14%, var(--panel))
+    );
+    color: var(--text);
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 6px 12px;
   }
 
   .loading {

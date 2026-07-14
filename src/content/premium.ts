@@ -9,7 +9,7 @@ export const PREMIUM: PremiumItem[] = [
     name: 'Gathering Manager',
     icon: '🧑‍💼',
     description: 'Halves the gather cycle time of every resource.',
-    priceUsd: 4.99,
+    priceUsd: 50,
     unique: true,
   },
   {
@@ -17,7 +17,7 @@ export const PREMIUM: PremiumItem[] = [
     name: 'Crafting Manager',
     icon: '👩‍💼',
     description: 'Halves the craft time of every recipe.',
-    priceUsd: 4.99,
+    priceUsd: 50,
     unique: true,
   },
   {
@@ -25,7 +25,7 @@ export const PREMIUM: PremiumItem[] = [
     name: 'Market Manager',
     icon: '🤵',
     description: 'Doubles the sell price of everything.',
-    priceUsd: 6.99,
+    priceUsd: 50,
     unique: true,
   },
   {

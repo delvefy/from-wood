@@ -1,7 +1,10 @@
 <script lang="ts">
+  import AccountSection from './AccountSection.svelte';
   import { settings, toggleMaterialLinks } from '../util/settings';
   import { setTheme, theme } from '../util/theme';
 </script>
+
+<AccountSection />
 
 <h2>Appearance</h2>
 <div class="options">

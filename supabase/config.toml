@@ -1,0 +1,4 @@
+# reset-password is called before the player has any session, so it must not
+# require a JWT; it protects itself (neutral responses, service-role lookups).
+[functions.reset-password]
+verify_jwt = false

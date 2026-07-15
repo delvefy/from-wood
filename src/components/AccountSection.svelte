@@ -7,8 +7,8 @@
     signInWithEmail,
     signOutAccount,
   } from '../lib/supabase';
+  import { accountMode } from '../util/nav';
 
-  let mode = $state<'signin' | 'register'>('signin');
   let email = $state('');
   let password = $state('');
   let newPassword = $state('');
@@ -33,7 +33,7 @@
   function onSubmit(event: SubmitEvent) {
     event.preventDefault();
     void run(async () => {
-      if (mode === 'register') return registerWithEmail(email.trim(), password);
+      if ($accountMode === 'register') return registerWithEmail(email.trim(), password);
       await signInWithEmail(email.trim(), password);
       password = '';
       return 'Signed in.';
@@ -86,8 +86,10 @@
       one you still play with a per-device identity.
     </p>
     <div class="options">
-      <button class:active={mode === 'signin'} onclick={() => (mode = 'signin')}>Sign in</button>
-      <button class:active={mode === 'register'} onclick={() => (mode = 'register')}>
+      <button class:active={$accountMode === 'signin'} onclick={() => accountMode.set('signin')}>
+        Sign in
+      </button>
+      <button class:active={$accountMode === 'register'} onclick={() => accountMode.set('register')}>
         Register
       </button>
     </div>
@@ -98,14 +100,14 @@
       <input
         id="account-password"
         type="password"
-        autocomplete={mode === 'register' ? 'new-password' : 'current-password'}
+        autocomplete={$accountMode === 'register' ? 'new-password' : 'current-password'}
         bind:value={password}
       />
       <button
         class="primary"
         disabled={busy || email.trim().length === 0 || password.length === 0}
       >
-        {mode === 'register' ? 'Create account' : 'Sign in'}
+        {$accountMode === 'register' ? 'Create account' : 'Sign in'}
       </button>
     </form>
     <button class="linkish" disabled={busy || email.trim().length === 0} onclick={onForgot}>

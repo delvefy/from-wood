@@ -5,6 +5,10 @@ export type Tab = 'gather' | 'craft' | 'research' | 'market' | 'tournament' | 's
 
 export const activeTab = writable<Tab>('gather');
 
+// Which form the Settings → Account panel shows. Other views set this to
+// 'register' before navigating to send the player straight to registration.
+export const accountMode = writable<'signin' | 'register'>('signin');
+
 // Per-view search text ('gather' | 'craft' | 'market'), session-only.
 export const searchFilters = writable<Record<string, string>>({});
 

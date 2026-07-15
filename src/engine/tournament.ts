@@ -4,7 +4,13 @@ import { ensureSignedIn, supabase } from '../lib/supabase';
 import { grantTournamentReward } from './account';
 import { resetTickClock } from './actions';
 import { gameMode, type GameMode } from './mode';
-import { loadGame, saveGame, writeFreshTournamentSave, type OfflineReport } from './save';
+import {
+  loadGame,
+  saveGame,
+  savesSuspended,
+  writeFreshTournamentSave,
+  type OfflineReport,
+} from './save';
 import { game } from './state';
 import { getTournamentMeta, setTournamentMeta } from './tournamentMeta';
 import { totalValue } from './worth';
@@ -197,6 +203,9 @@ export async function switchMode(target: GameMode): Promise<OfflineReport | null
 let lastSubmitAt = 0;
 
 export function maybeSubmitScore(force = false): void {
+  // Mid account-swap the signed-in user and the local state disagree; never
+  // submit one account's worth under another's entry.
+  if (savesSuspended()) return;
   if (get(gameMode) !== 'tournament') return;
   const meta = getTournamentMeta();
   if (!meta) return;

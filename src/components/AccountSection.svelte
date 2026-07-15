@@ -7,6 +7,7 @@
     signInWithEmail,
     signOutAccount,
   } from '../lib/supabase';
+  import { flushCloudSave } from '../engine/cloudSave';
   import { accountMode } from '../util/nav';
 
   let email = $state('');
@@ -55,6 +56,9 @@
 
   function onSignOut() {
     void run(async () => {
+      // Back the account's progress up first so it survives the sign-out;
+      // flush never throws on network failure, so offline sign-out still works.
+      await flushCloudSave();
       await signOutAccount();
       return 'Signed out.';
     });
@@ -82,8 +86,8 @@
 {:else}
   <div class="panel">
     <p class="small muted">
-      Optional — an account lets you keep your league and sign in from other devices. Without
-      one you still play with a per-device identity.
+      Optional — an account backs up your progress and league so you can pick up on other
+      devices. Without one you still play with a per-device identity.
     </p>
     <div class="options">
       <button class:active={$accountMode === 'signin'} onclick={() => accountMode.set('signin')}>

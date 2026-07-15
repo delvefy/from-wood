@@ -13,6 +13,7 @@
   import { RESOURCE_BY_ID } from './content/resources';
   import { TECH_BY_ID } from './content/tech';
   import { resetTickClock, runTick } from './engine/actions';
+  import { initCloudSave, maybeCloudPush } from './engine/cloudSave';
   import { loadGame, offlineReport, saveGame } from './engine/save';
   import { maybeSubmitScore } from './engine/tournament';
   import { formatDuration, formatNumber } from './util/format';
@@ -26,19 +27,24 @@
 
     (async () => {
       await loadGame();
+      initCloudSave();
       resetTickClock();
       ready = true;
       tickTimer = window.setInterval(() => {
         runTick();
         maybeSubmitScore();
       }, 1000);
-      saveTimer = window.setInterval(() => void saveGame(), 10_000);
+      saveTimer = window.setInterval(() => {
+        void saveGame();
+        maybeCloudPush();
+      }, 10_000);
     })();
 
     const onVisibility = () => {
       if (document.visibilityState === 'hidden') {
         void saveGame();
         maybeSubmitScore(true);
+        maybeCloudPush('hide');
       }
     };
     const onUnload = () => void saveGame();

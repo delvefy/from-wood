@@ -30,9 +30,52 @@ export interface OfflineReport {
 export const offlineReport = writable<OfflineReport | null>(null);
 
 export async function saveGame(): Promise<void> {
+  if (suspended) return;
   game.update((s) => ({ ...s, lastSeen: Date.now() }));
   // Plain deep clone so IndexedDB never sees store-internal references.
   await idbSet(SAVE_KEYS[get(gameMode)], JSON.parse(JSON.stringify(get(game))));
+}
+
+// While the cloud-save layer swaps the local state over to another account,
+// autosave and score submission must not run against half-swapped state.
+let suspended = false;
+
+export function savesSuspended(): boolean {
+  return suspended;
+}
+
+export async function withSavesSuspended<T>(fn: () => Promise<T>): Promise<T> {
+  suspended = true;
+  try {
+    return await fn();
+  } finally {
+    suspended = false;
+  }
+}
+
+// Raw slot contents, for the cloud-save layer to back up and restore
+// wholesale without going through the live game store.
+export interface SlotSnapshot {
+  main?: GameState;
+  tournament?: GameState;
+}
+
+export async function snapshotSlots(): Promise<SlotSnapshot> {
+  const [main, tournament] = await Promise.all([
+    idbGet(SAVE_KEYS.main) as Promise<GameState | undefined>,
+    idbGet(SAVE_KEYS.tournament) as Promise<GameState | undefined>,
+  ]);
+  const slots: SlotSnapshot = {};
+  if (main) slots.main = main;
+  if (tournament) slots.tournament = tournament;
+  return slots;
+}
+
+export async function restoreSlots(slots: SlotSnapshot): Promise<void> {
+  await (slots.main ? idbSet(SAVE_KEYS.main, slots.main) : idbDel(SAVE_KEYS.main));
+  await (slots.tournament
+    ? idbSet(SAVE_KEYS.tournament, slots.tournament)
+    : idbDel(SAVE_KEYS.tournament));
 }
 
 // Loads the active slot's save (if any), fast-forwards all timed work for the

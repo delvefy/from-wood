@@ -21,23 +21,31 @@ const EMPTY: AccountData = {
   claimedTournamentIds: [],
 };
 
+function normalize(parsed: Partial<AccountData> | null | undefined): AccountData {
+  if (!parsed) return { ...EMPTY };
+  return {
+    ...EMPTY,
+    ...parsed,
+    premium: { ...(parsed.premium ?? {}) },
+    claimedTournamentIds: [...(parsed.claimedTournamentIds ?? [])],
+  };
+}
+
 function load(): AccountData {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...EMPTY };
-    const parsed = JSON.parse(raw) as Partial<AccountData>;
-    return {
-      ...EMPTY,
-      ...parsed,
-      premium: { ...(parsed.premium ?? {}) },
-      claimedTournamentIds: [...(parsed.claimedTournamentIds ?? [])],
-    };
+    return normalize(raw ? (JSON.parse(raw) as Partial<AccountData>) : null);
   } catch {
     return { ...EMPTY };
   }
 }
 
 export const account = writable<AccountData>(load());
+
+// Cloud-save account switch: replace the whole account (null → empty).
+export function replaceAccountData(data: Partial<AccountData> | null): void {
+  account.set(normalize(data));
+}
 
 account.subscribe((a) => localStorage.setItem(STORAGE_KEY, JSON.stringify(a)));
 

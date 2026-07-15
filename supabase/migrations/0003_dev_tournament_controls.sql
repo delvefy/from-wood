@@ -12,7 +12,7 @@ returns void
 language plpgsql
 as $$
 begin
-  if p_key is distinct from 'from-wood-dev' then
+  if p_key is distinct from '215ba0c66eaab4c900443abe' then
     raise exception 'bad admin key';
   end if;
 end;

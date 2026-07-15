@@ -191,31 +191,6 @@ export async function switchMode(target: GameMode): Promise<OfflineReport | null
   return report;
 }
 
-// ---- Dev/testing controls (Settings → Testing) -----------------------------
-// Server RPCs from 0003_dev_tournament_controls.sql, guarded by a shared
-// admin key. Both throw with a user-readable message on failure.
-
-// Ends whatever is running, then starts a fresh tournament immediately.
-export async function devStartTournament(key: string, minutes: number): Promise<void> {
-  await ensureSignedIn();
-  const { data, error } = await supabase.rpc('dev_start_tournament', {
-    p_key: key,
-    p_minutes: minutes,
-  });
-  if (error) throw new Error(error.message);
-  applyState(data);
-  void fetchLeaderboard();
-}
-
-// Ends the running tournament right now; ranks (and rewards) finalize immediately.
-export async function devEndTournament(key: string): Promise<void> {
-  await ensureSignedIn();
-  const { data, error } = await supabase.rpc('dev_end_tournament', { p_key: key });
-  if (error) throw new Error(error.message);
-  applyState(data);
-  void fetchLeaderboard();
-}
-
 // Push the current run's net worth to the server, at most once a minute.
 // Fire-and-forget: submissions are monotonic server-side, so a dropped one
 // costs nothing — the next submit carries the higher score.

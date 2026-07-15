@@ -61,7 +61,6 @@
   );
   const anyUnlocked = $derived($game.unlockedRecipes.length > 0);
   const idle = $derived(idleCrafters($game));
-  let manage = $state(false);
 
   // Every recipe outputs exactly one item type; its icon stands in for the recipe.
   const outputId = (recipe: Recipe) => Object.keys(recipe.outputs)[0];
@@ -81,16 +80,13 @@
   <p class="muted empty">No recipes yet — research <strong>Woodworking</strong> to unlock crafting.</p>
 {:else}
   <SearchBox view="craft" placeholder="Search recipes & materials…" />
-  <button class="slots" onclick={() => (manage = !manage)}>
-    <Icon id={CRAFTER.icon} tint={false} /> Crafters: <strong>{idle}</strong> idle / {totalCrafters($game, $account)} total
-    <span class="muted">— tap to manage {manage ? '▾' : '▸'}</span>
-  </button>
-  {#if manage}
-    <div class="manage">
-      <button onclick={unassignAllCrafters}>Unassign all</button>
-      <button class="fill" disabled={idle <= 0} onclick={assignAllCrafters}>Assign all evenly</button>
-    </div>
-  {/if}
+  <div class="slots">
+    <span class="count" title="{idle} idle of {totalCrafters($game, $account)} crafters">
+      <Icon id={CRAFTER.icon} tint={false} /> <strong>{idle}</strong>/{totalCrafters($game, $account)} idle
+    </span>
+    <button onclick={unassignAllCrafters}>Unassign all</button>
+    <button class="fill" disabled={idle <= 0} onclick={assignAllCrafters}>Assign evenly</button>
+  </div>
 {/if}
 <div class="groups">
   {#each groups as group (group.id)}
@@ -212,10 +208,11 @@
   }
 
   .slots {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 8px;
     width: 100%;
-    text-align: left;
-    padding: 10px 12px;
+    padding: 6px 6px 6px 12px;
     margin-bottom: 10px;
     background: var(--panel);
     border: 1px solid var(--border);
@@ -224,22 +221,23 @@
     font-size: 0.9rem;
   }
 
-  .slots .muted {
-    font-size: 0.75rem;
-  }
-
-  .manage {
+  .count {
     display: flex;
-    gap: 8px;
-    margin: -2px 0 10px;
+    align-items: center;
+    gap: 5px;
+    margin-right: auto;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
   }
 
-  .manage button {
-    flex: 1;
-    font-size: 0.85rem;
+  .slots button {
+    min-height: 36px;
+    padding: 0 10px;
+    font-size: 0.8rem;
+    white-space: nowrap;
   }
 
-  .manage .fill {
+  .slots .fill {
     background: var(--grad-primary);
     border: none;
     color: #fff;

@@ -32,7 +32,6 @@
     ),
   );
   const idle = $derived(idleWorkers($game));
-  let manage = $state(false);
 
   // The tech node whose research unlocks this resource (for the locked hint).
   function unlockedBy(resourceId: string) {
@@ -50,16 +49,13 @@
 
 <SearchBox view="gather" placeholder="Search materials…" />
 
-<button class="slots" onclick={() => (manage = !manage)}>
-  <Icon id={GATHERER.icon} tint={false} /> Gatherers: <strong>{idle}</strong> idle / {totalGatherers($game, $account)} total
-  <span class="muted">— tap to manage {manage ? '▾' : '▸'}</span>
-</button>
-{#if manage}
-  <div class="manage">
-    <button onclick={unassignAllWorkers}>Unassign all</button>
-    <button class="fill" disabled={idle <= 0} onclick={assignAllWorkers}>Assign all evenly</button>
-  </div>
-{/if}
+<div class="slots">
+  <span class="count" title="{idle} idle of {totalGatherers($game, $account)} gatherers">
+    <Icon id={GATHERER.icon} tint={false} /> <strong>{idle}</strong>/{totalGatherers($game, $account)} idle
+  </span>
+  <button onclick={unassignAllWorkers}>Unassign all</button>
+  <button class="fill" disabled={idle <= 0} onclick={assignAllWorkers}>Assign evenly</button>
+</div>
 
 <div class="list">
   {#each gatherable as r (r.id)}
@@ -132,10 +128,11 @@
 
 <style>
   .slots {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 8px;
     width: 100%;
-    text-align: left;
-    padding: 10px 12px;
+    padding: 6px 6px 6px 12px;
     margin-bottom: 10px;
     background: var(--panel);
     border: 1px solid var(--border);
@@ -144,22 +141,23 @@
     font-size: 0.9rem;
   }
 
-  .slots .muted {
-    font-size: 0.75rem;
-  }
-
-  .manage {
+  .count {
     display: flex;
-    gap: 8px;
-    margin: -2px 0 10px;
+    align-items: center;
+    gap: 5px;
+    margin-right: auto;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
   }
 
-  .manage button {
-    flex: 1;
-    font-size: 0.85rem;
+  .slots button {
+    min-height: 36px;
+    padding: 0 10px;
+    font-size: 0.8rem;
+    white-space: nowrap;
   }
 
-  .manage .fill {
+  .slots .fill {
     background: var(--grad-primary);
     border: none;
     color: #fff;

@@ -14,18 +14,34 @@ export const LEAGUES = [
   { name: 'Worldtree', icon: '🌳' },
 ] as const;
 
-// PLACEHOLDER rewards until the real reward system lands.
-const REWARD_TIERS: { maxRank: number; label: string }[] = [
-  { maxRank: 1, label: '🏆 Champion reward (coming soon)' },
-  { maxRank: 3, label: '🥇 Podium reward (coming soon)' },
-  { maxRank: PROMOTE_COUNT, label: '🎁 Promotion reward (coming soon)' },
-  { maxRank: 20, label: '📦 Top-half reward (coming soon)' },
-  { maxRank: GROUP_SIZE, label: '🪙 Participation reward (coming soon)' },
-];
+// Worker rewards, granted once per finished tournament and added permanently
+// to the player's base workers — they apply to the village and seed every
+// future tournament run. 1st: 2 crafters, 2nd: 1 crafter, 3rd–12th: 10 down
+// to 1 gatherer, below that: nothing.
+export interface TournamentReward {
+  gatherers: number;
+  crafters: number;
+}
 
-export function rewardFor(rank: number): string {
-  for (const tier of REWARD_TIERS) if (rank <= tier.maxRank) return tier.label;
-  return REWARD_TIERS[REWARD_TIERS.length - 1].label;
+export function rewardForRank(rank: number): TournamentReward {
+  if (rank === 1) return { gatherers: 0, crafters: 2 };
+  if (rank === 2) return { gatherers: 0, crafters: 1 };
+  if (rank >= 3 && rank <= 12) return { gatherers: 13 - rank, crafters: 0 };
+  return { gatherers: 0, crafters: 0 };
+}
+
+export const REWARD_SUMMARY =
+  '1st: +2 crafters · 2nd: +1 crafter · 3rd–12th: +10 down to +1 gatherers';
+
+export function rewardLabel(rank: number): string {
+  const r = rewardForRank(rank);
+  if (r.crafters > 0) {
+    return `🏆 +${r.crafters} permanent crafter${r.crafters > 1 ? 's' : ''} added to your base workers`;
+  }
+  if (r.gatherers > 0) {
+    return `🎁 +${r.gatherers} permanent gatherer${r.gatherers > 1 ? 's' : ''} added to your base workers`;
+  }
+  return 'No worker reward this time — finish in the top 12 to win permanent workers.';
 }
 
 const NAME_ADJECTIVES = [

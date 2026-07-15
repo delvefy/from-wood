@@ -5,6 +5,7 @@
   import { RESOURCES } from '../content/resources';
   import { TECH } from '../content/tech';
   import { GATHERER } from '../content/workers';
+  import { account } from '../engine/account';
   import { assignAllWorkers, assignWorker, idleWorkers, unassignAllWorkers } from '../engine/actions';
   import { harvestMultiplier } from '../engine/multipliers';
   import { gatherTimeFactor, totalGatherers } from '../engine/premium';
@@ -50,7 +51,7 @@
 <SearchBox view="gather" placeholder="Search materials…" />
 
 <button class="slots" onclick={() => (manage = !manage)}>
-  <Icon id={GATHERER.icon} tint={false} /> Gatherers: <strong>{idle}</strong> idle / {totalGatherers($game)} total
+  <Icon id={GATHERER.icon} tint={false} /> Gatherers: <strong>{idle}</strong> idle / {totalGatherers($game, $account)} total
   <span class="muted">— tap to manage {manage ? '▾' : '▸'}</span>
 </button>
 {#if manage}
@@ -63,7 +64,7 @@
 <div class="list">
   {#each gatherable as r (r.id)}
     {@const assigned = $game.gatherAssignment[r.id] ?? 0}
-    {@const cycle = r.extractTimeSeconds * gatherTimeFactor($game)}
+    {@const cycle = r.extractTimeSeconds * gatherTimeFactor($account)}
     {@const yield_ = assigned * r.harvestAmount * harvestMultiplier($game.multipliers, r.id)}
     <div class="card gather">
       <button
@@ -363,7 +364,7 @@
   .branch {
     padding: 1px 8px;
     border: 1px solid var(--border);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     font-size: 0.68rem;
   }
 

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import BottomNav from './components/BottomNav.svelte';
   import Icon from './components/Icon.svelte';
+  import ModeSwitch from './components/ModeSwitch.svelte';
   import CraftView from './components/CraftView.svelte';
   import GatherView from './components/GatherView.svelte';
   import MarketView from './components/MarketView.svelte';
@@ -12,7 +13,6 @@
   import { RESOURCE_BY_ID } from './content/resources';
   import { TECH_BY_ID } from './content/tech';
   import { resetTickClock, runTick } from './engine/actions';
-  import { gameMode } from './engine/mode';
   import { loadGame, offlineReport, saveGame } from './engine/save';
   import { maybeSubmitScore } from './engine/tournament';
   import { formatDuration, formatNumber } from './util/format';
@@ -55,12 +55,8 @@
 </script>
 
 {#if ready}
+  <ModeSwitch />
   <ResourceBar />
-  {#if $gameMode === 'tournament'}
-    <button class="tourney-banner" onclick={() => activeTab.set('tournament')}>
-      🏆 Tournament run — your village is safe at home
-    </button>
-  {/if}
   <main>
     {#if $activeTab === 'gather'}
       <GatherView />
@@ -105,22 +101,6 @@
     overflow-y: auto;
     overscroll-behavior: contain;
     padding: 12px;
-  }
-
-  .tourney-banner {
-    flex: none;
-    border: none;
-    border-bottom: 1px solid color-mix(in srgb, var(--gold) 45%, var(--border));
-    border-radius: 0;
-    background: linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--gold) 22%, var(--panel)),
-      color-mix(in srgb, var(--magic) 14%, var(--panel))
-    );
-    color: var(--text);
-    font-size: 0.8rem;
-    font-weight: 600;
-    padding: 6px 12px;
   }
 
   .loading {

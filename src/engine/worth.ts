@@ -1,6 +1,7 @@
 import { RESOURCES } from '../content/resources';
 import { TECH } from '../content/tech';
 import { CRAFTER, GATHERER } from '../content/workers';
+import { getAccount } from './account';
 import { sellPriceFactor } from './premium';
 import type { GameState, WorkerConfig } from './types';
 
@@ -30,7 +31,7 @@ function hiredValue(config: WorkerConfig, owned: number): number {
 // refundable). O(resources + tech owned) per call, everything else precomputed.
 export function totalValue(s: GameState): number {
   let total = s.credits;
-  const priceFactor = sellPriceFactor(s);
+  const priceFactor = sellPriceFactor(getAccount());
   for (const [id, n] of Object.entries(s.resources)) total += n * (PRICE[id] ?? 0) * priceFactor;
   total += hiredValue(GATHERER, s.workers) + hiredValue(CRAFTER, s.crafters);
   for (const id of s.unlockedTech) total += TECH_VALUE[id] ?? 0;

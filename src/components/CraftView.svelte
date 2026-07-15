@@ -12,6 +12,7 @@
     idleCrafters,
     unassignAllCrafters,
   } from '../engine/actions';
+  import { account } from '../engine/account';
   import { craftTimeFactor, totalCrafters } from '../engine/premium';
   import { game } from '../engine/state';
   import { collapsed, isCollapsed, toggleCollapsed } from '../util/collapse';
@@ -81,7 +82,7 @@
 {:else}
   <SearchBox view="craft" placeholder="Search recipes & materials…" />
   <button class="slots" onclick={() => (manage = !manage)}>
-    <Icon id={CRAFTER.icon} tint={false} /> Crafters: <strong>{idle}</strong> idle / {totalCrafters($game)} total
+    <Icon id={CRAFTER.icon} tint={false} /> Crafters: <strong>{idle}</strong> idle / {totalCrafters($game, $account)} total
     <span class="muted">— tap to manage {manage ? '▾' : '▸'}</span>
   </button>
   {#if manage}
@@ -104,7 +105,7 @@
       <div class="list">
         {#each group.unlocked as recipe (recipe.id)}
             {@const assigned = $game.craftAssignment[recipe.id] ?? 0}
-            {@const duration = recipe.craftTimeSeconds * craftTimeFactor($game)}
+            {@const duration = recipe.craftTimeSeconds * craftTimeFactor($account)}
             {@const raw = rawEntries(recipe.id)}
             <div class="card craft">
               <button
@@ -430,7 +431,7 @@
   .item {
     padding: 2px 8px;
     background: var(--panel-2);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     white-space: nowrap;
   }
 
@@ -510,7 +511,7 @@
   .branch {
     padding: 1px 8px;
     border: 1px solid var(--border);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     font-size: 0.68rem;
   }
 

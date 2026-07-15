@@ -1,53 +1,55 @@
 import { PREMIUM_BY_ID } from '../content/premium';
-import { game } from './state';
+import { account, type AccountData } from './account';
 import type { GameState, PremiumId } from './types';
 
-// All premium effects are pure functions of the ownership counts in
-// `s.premium`, mirroring how tech multipliers are derived — nothing here is
-// persisted beyond the counts themselves.
+// All premium effects and base-worker bonuses are pure functions of the
+// account-level counts (money purchases + tournament reward workers). They
+// live on the account, not the save slot, so they apply to the village and to
+// every tournament run alike — a fresh run starts with the full base crew.
 
-export function premiumOwned(s: GameState, id: PremiumId): number {
-  return s.premium[id] ?? 0;
+export function premiumOwned(a: AccountData, id: PremiumId): number {
+  return a.premium[id] ?? 0;
 }
 
 // Managers: flat on/off boosts (unique items, so counts are 0 or 1).
-export function gatherTimeFactor(s: GameState): number {
-  return premiumOwned(s, 'gatherManager') > 0 ? 0.5 : 1;
+export function gatherTimeFactor(a: AccountData): number {
+  return premiumOwned(a, 'gatherManager') > 0 ? 0.5 : 1;
 }
 
-export function craftTimeFactor(s: GameState): number {
-  return premiumOwned(s, 'craftManager') > 0 ? 0.5 : 1;
+export function craftTimeFactor(a: AccountData): number {
+  return premiumOwned(a, 'craftManager') > 0 ? 0.5 : 1;
 }
 
-export function sellPriceFactor(s: GameState): number {
-  return premiumOwned(s, 'marketManager') > 0 ? 2 : 1;
+export function sellPriceFactor(a: AccountData): number {
+  return premiumOwned(a, 'marketManager') > 0 ? 2 : 1;
 }
 
-// Packs grant workers on top of the hired pool. Hire costs scale off
-// `s.workers` / `s.crafters` alone, so pack workers never raise them.
-export function bonusGatherers(s: GameState): number {
-  return 10 * premiumOwned(s, 'gathererPack');
+// Base workers on top of the hired pool: money-bought packs plus tournament
+// reward workers. Hire costs scale off `s.workers` / `s.crafters` alone, so
+// base workers never raise them.
+export function bonusGatherers(a: AccountData): number {
+  return 10 * premiumOwned(a, 'gathererPack') + a.rewardGatherers;
 }
 
-export function bonusCrafters(s: GameState): number {
-  return premiumOwned(s, 'crafterPack');
+export function bonusCrafters(a: AccountData): number {
+  return premiumOwned(a, 'crafterPack') + a.rewardCrafters;
 }
 
-export function totalGatherers(s: GameState): number {
-  return s.workers + bonusGatherers(s);
+export function totalGatherers(s: GameState, a: AccountData): number {
+  return s.workers + bonusGatherers(a);
 }
 
-export function totalCrafters(s: GameState): number {
-  return s.crafters + bonusCrafters(s);
+export function totalCrafters(s: GameState, a: AccountData): number {
+  return s.crafters + bonusCrafters(a);
 }
 
 // Free during development: the UI confirms the (pretend) charge, then this
-// just grants the item.
+// just grants the item on the account.
 export function buyPremium(id: PremiumId): void {
-  game.update((s) => {
-    const item = PREMIUM_BY_ID[id];
-    if (!item) return s;
-    if (item.unique && premiumOwned(s, id) > 0) return s;
-    return { ...s, premium: { ...s.premium, [id]: premiumOwned(s, id) + 1 } };
+  const item = PREMIUM_BY_ID[id];
+  if (!item) return;
+  account.update((a) => {
+    if (item.unique && premiumOwned(a, id) > 0) return a;
+    return { ...a, premium: { ...a.premium, [id]: premiumOwned(a, id) + 1 } };
   });
 }

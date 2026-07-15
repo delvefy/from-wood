@@ -1,6 +1,7 @@
 import { del as idbDel, get as idbGet, set as idbSet } from 'idb-keyval';
 import { get } from 'svelte/store';
 import { writable } from 'svelte/store';
+import { migrateLegacyPremium } from './account';
 import { computeMultipliers } from './multipliers';
 import { gameMode, type GameMode } from './mode';
 import { createInitialState, game } from './state';
@@ -63,8 +64,14 @@ export async function loadGame(): Promise<OfflineReport | null> {
     unlockedTech: union([], saved.unlockedTech),
     researchQueue: [...(saved.researchQueue ?? [])],
     multipliers: computeMultipliers(saved.unlockedTech ?? []),
-    premium: { ...(saved.premium ?? {}) },
   };
+
+  // Legacy saves kept premium purchases inside the slot; move them onto the
+  // account once so they keep working (and now apply to both slots).
+  const legacyPremium = (saved as { premium?: Record<string, number> }).premium;
+  if (legacyPremium && Object.keys(legacyPremium).length > 0) {
+    migrateLegacyPremium(legacyPremium);
+  }
 
   const now = Date.now();
   // Tournament runs freeze at the finish line: catch-up never runs past it.
@@ -100,7 +107,9 @@ export async function loadGame(): Promise<OfflineReport | null> {
   return report;
 }
 
-// Called on tournament join: overwrite the tournament slot with a brand-new run.
+// Called on tournament join: overwrite the tournament slot with a brand-new
+// run. Base workers (premium packs + tournament rewards) need no seeding here —
+// they live on the account and apply to whichever slot is loaded.
 export async function writeFreshTournamentSave(): Promise<void> {
   const s: GameState = { ...createInitialState(), lastSeen: Date.now() };
   await idbSet(SAVE_KEYS.tournament, JSON.parse(JSON.stringify(s)));

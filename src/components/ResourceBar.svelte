@@ -28,7 +28,7 @@
     align-items: center;
     gap: 8px;
     flex: none;
-    padding: calc(10px + env(safe-area-inset-top)) 12px 10px;
+    padding: 10px 12px;
     background: linear-gradient(
       135deg,
       color-mix(in srgb, var(--magic) 10%, var(--panel)),
@@ -69,7 +69,7 @@
     padding: 6px 9px;
     font-size: 0.85rem;
     line-height: 1;
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
   }
 
   .theme-toggle.active {

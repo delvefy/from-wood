@@ -1,9 +1,10 @@
 import type { WorkerConfig } from '../engine/types';
 
 // Two worker types with the same mechanic: each worker fills one slot and is
-// assigned to a resource (gatherers) or a recipe (crafters). The player starts
-// with `startingCount` free workers; more are hired with credits at scaling cost.
-// `icon` is an ICON_PATHS id (icon-map.json), rendered via <Icon>.
+// assigned to a resource (gatherers) or a recipe (crafters). A new player
+// starts with just 1 gatherer; more workers are hired with credits at scaling
+// cost, and permanent base workers (premium packs, tournament rewards) stack
+// on top via the account. `icon` is an ICON_PATHS id, rendered via <Icon>.
 export const GATHERER: WorkerConfig = {
   name: 'Gatherer',
   icon: 'worker_gatherer',
@@ -22,5 +23,5 @@ export const CRAFTER: WorkerConfig = {
   description: 'Each crafter fills one craft slot and can be assigned to a recipe.',
   hireCost: 100,
   hireCostGrowth: 4,
-  startingCount: 1,
+  startingCount: 0,
 };

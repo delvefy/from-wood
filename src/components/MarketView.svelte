@@ -12,6 +12,7 @@
     sellEverything,
     sellResource,
   } from '../engine/actions';
+  import { account } from '../engine/account';
   import {
     buyPremium,
     premiumOwned,
@@ -52,7 +53,7 @@
     })).filter((g) => g.items.length > 0),
   );
 
-  const priceFactor = $derived(sellPriceFactor($game));
+  const priceFactor = $derived(sellPriceFactor($account));
 
   // Sell percentage sliders: one global, one per material (default 100%).
   let sellPct = $state(100);
@@ -75,12 +76,12 @@
   );
 
   // `owned` drives the hire cost (only paid hires scale it); `total` includes
-  // free premium-pack workers and is what the player sees.
+  // base workers (premium packs + tournament rewards) and is what the player sees.
   const hireRows = $derived([
     {
       config: GATHERER,
       owned: $game.workers,
-      total: totalGatherers($game),
+      total: totalGatherers($game, $account),
       idle: idleWorkers($game),
       hire: hireWorker,
       hint: 'Assign gatherers to resources in the Gather tab.',
@@ -88,7 +89,7 @@
     {
       config: CRAFTER,
       owned: $game.crafters,
-      total: totalCrafters($game),
+      total: totalCrafters($game, $account),
       idle: idleCrafters($game),
       hire: hireCrafter,
       hint: 'Assign crafters to recipes in the Craft tab.',
@@ -194,7 +195,7 @@
 <h2>✨ Premium Emporium</h2>
 <p class="muted hint">Boosts bought with real money — free while the game is in development.</p>
 {#each PREMIUM as item (item.id)}
-  {@const owned = premiumOwned($game, item.id)}
+  {@const owned = premiumOwned($account, item.id)}
   <div class="row worker premium">
     <span class="what">
       {item.icon} {item.name}

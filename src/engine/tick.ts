@@ -1,6 +1,7 @@
 import { RECIPE_BY_ID } from '../content/recipes';
 import { RESOURCES } from '../content/resources';
 import { TECH_BY_ID } from '../content/tech';
+import { getAccount } from './account';
 import { computeMultipliers, harvestMultiplier } from './multipliers';
 import { craftTimeFactor, gatherTimeFactor } from './premium';
 import type { GameState, Recipe, ResourceId, TechNode } from './types';
@@ -65,8 +66,10 @@ export function unlockOutputs(s: GameState, recipe: Recipe): void {
 // offline progress.
 export function tick(s: GameState, seconds: number): GameState {
   // Premium managers shorten cycle durations; hoisted since they apply to all.
-  const gatherFactor = gatherTimeFactor(s);
-  const craftFactor = craftTimeFactor(s);
+  // Account-level, so they hold in the village and tournament slots alike.
+  const acct = getAccount();
+  const gatherFactor = gatherTimeFactor(acct);
+  const craftFactor = craftTimeFactor(acct);
 
   // Gathering: each resource with assigned workers runs a shared cycle bar;
   // every completed cycle yields (workers × amount × multipliers).

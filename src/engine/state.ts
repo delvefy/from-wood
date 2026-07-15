@@ -23,7 +23,6 @@ export function createInitialState(): GameState {
     researchQueue: [],
     researchProgress: 0,
     multipliers: computeMultipliers([]),
-    premium: {},
     lastSeen: Date.now(),
   };
 }

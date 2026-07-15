@@ -423,7 +423,7 @@
   .queue-toggle {
     min-height: 32px;
     padding: 2px 10px;
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     font-size: 0.75rem;
     color: var(--muted);
   }
@@ -440,7 +440,7 @@
   .queue-clear {
     min-height: 32px;
     padding: 2px 10px;
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     font-size: 0.75rem;
     color: var(--danger);
   }
@@ -712,7 +712,7 @@
     font-size: 0.65rem;
     padding: 1px 6px;
     background: var(--panel-2);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     white-space: nowrap;
   }
 
@@ -773,7 +773,7 @@
     min-height: 36px;
     padding: 4px 14px;
     border: 1px solid var(--accent);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     background: color-mix(in srgb, var(--accent) 16%, var(--panel));
     color: var(--accent);
     font-size: 0.75rem;

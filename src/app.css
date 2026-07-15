@@ -67,9 +67,63 @@
   --tier-9: #ff5d73;
 }
 
+/* Tournament: light — cold steel arena, matches the parchment theme's brightness */
+:root[data-theme='wood'][data-mode='tournament'] {
+  --bg: #dde7f2;
+  --bg-glow-1: rgb(37 99 235 / 15%);
+  --bg-glow-2: rgb(8 145 178 / 15%);
+  --panel: #eef4fb;
+  --panel-2: #d2e0ef;
+  --border: #a2b8d6;
+  --text: #1b2a41;
+  --muted: #5d7392;
+  --accent: #0e7fa8;
+  --accent-dark: #3b5fd0;
+  --danger: #d2483a;
+  --gold: #a8842a;
+  --science: #1467b8;
+  --magic: #3b5fd0;
+  --tech: #0e7fa8;
+  --magitech: #2a6ea8;
+  --shadow: 0 2px 10px rgb(27 42 65 / 14%);
+  --grad-primary: linear-gradient(135deg, #3b5fd0, #0e7fa8);
+}
+
+/* Tournament: dark — the industrial night pulled toward deep arena blue */
+:root[data-theme='industrial'][data-mode='tournament'] {
+  --bg: #081020;
+  --bg-glow-1: rgb(59 130 246 / 22%);
+  --bg-glow-2: rgb(34 211 238 / 15%);
+  --panel: #0e1a30;
+  --panel-2: #16264a;
+  --border: #2c4470;
+  --text: #e3ecff;
+  --muted: #8ba3c7;
+  --accent: #38bdf8;
+  --accent-dark: #3b6fd0;
+  --danger: #ff5d73;
+  --gold: #ffc94d;
+  --science: #4dc9ff;
+  --magic: #6d8dff;
+  --tech: #38bdf8;
+  --magitech: #7db8ff;
+  --shadow: 0 4px 16px rgb(0 0 0 / 50%);
+  --grad-primary: linear-gradient(135deg, #3b82f6, #22d3ee);
+}
+
 :root {
   --radius: 14px;
   --radius-sm: 9px;
+  --radius-pill: 999px;
+  --radius-round: 50%;
+}
+
+/* Tournament UI is all sharp edges — no rounded corners anywhere. */
+:root[data-mode='tournament'] {
+  --radius: 0px;
+  --radius-sm: 0px;
+  --radius-pill: 0px;
+  --radius-round: 0px;
 }
 
 * {

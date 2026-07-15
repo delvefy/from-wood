@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { DEMOTE_COUNT, LEAGUES, PROMOTE_COUNT, randomPlayerName, rewardFor } from '../content/tournament';
+  import { DEMOTE_COUNT, LEAGUES, PROMOTE_COUNT, randomPlayerName, REWARD_SUMMARY, rewardLabel } from '../content/tournament';
   import { gameMode } from '../engine/mode';
   import {
     fetchLeaderboard,
@@ -135,7 +135,7 @@
           Finished <strong>#{lastResult.finalRank}</strong> of {lastResult.groupSize}
           in {LEAGUES[lastResult.league]?.name ?? 'league'}.
         </p>
-        <p class="muted">{rewardFor(lastResult.finalRank)}</p>
+        <p class="muted">{rewardLabel(lastResult.finalRank)}</p>
       </div>
     {/if}
 
@@ -165,9 +165,13 @@
       <div class="card">
         <h3>Join this week's tournament</h3>
         <p class="muted small">
-          Everyone starts a brand-new run from nothing and races for 3 days to build the
-          highest net worth. Your village keeps running and is never affected. Top
-          {PROMOTE_COUNT} of a group move up a league, bottom {DEMOTE_COUNT} move down.
+          Everyone starts a brand-new run with just their base workers and races for 3
+          days to build the highest net worth. Your village keeps running and is never
+          affected. Top {PROMOTE_COUNT} of a group move up a league, bottom
+          {DEMOTE_COUNT} move down.
+        </p>
+        <p class="muted small">
+          Rewards are permanent base workers: {REWARD_SUMMARY}.
         </p>
         <label class="small muted" for="tourney-name">Compete as</label>
         <input id="tourney-name" maxlength="24" bind:value={name} />

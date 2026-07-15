@@ -32,7 +32,8 @@ export const PREMIUM: PremiumItem[] = [
     id: 'gathererPack',
     name: 'Gatherer Pack',
     icon: '📦',
-    description: '+10 gatherers. Does not raise normal hire prices.',
+    description:
+      '+10 permanent base gatherers — they work the village and every tournament run, and never raise hire prices.',
     priceUsd: 5,
     unique: false,
   },
@@ -40,7 +41,8 @@ export const PREMIUM: PremiumItem[] = [
     id: 'crafterPack',
     name: 'Crafter Pack',
     icon: '🎁',
-    description: '+1 crafter. Does not raise normal hire prices.',
+    description:
+      '+1 permanent base crafter — they work the village and every tournament run, and never raise hire prices.',
     priceUsd: 5,
     unique: false,
   },

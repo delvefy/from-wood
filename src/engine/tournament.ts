@@ -1,5 +1,7 @@
 import { get, writable } from 'svelte/store';
+import { rewardForRank } from '../content/tournament';
 import { ensureSignedIn, supabase } from '../lib/supabase';
+import { grantTournamentReward } from './account';
 import { resetTickClock } from './actions';
 import { gameMode, type GameMode } from './mode';
 import { loadGame, saveGame, writeFreshTournamentSave, type OfflineReport } from './save';
@@ -98,10 +100,31 @@ function syncMeta(st: TournamentState): void {
   });
 }
 
+// Once a run is finalized, add its worker reward to the account's base
+// workers. grantTournamentReward is idempotent per tournament, so calling this
+// on every state refresh is safe; ranks below the reward table grant nothing
+// but still mark the tournament claimed.
+function claimRewardIfDue(st: TournamentState): void {
+  const e = st.entry;
+  if (!e || e.status !== 'finished' || e.finalRank == null) return;
+  const reward = rewardForRank(e.finalRank);
+  grantTournamentReward(e.tournamentId, reward.gatherers, reward.crafters);
+}
+
 function errorMessage(err: unknown): string {
   if (err instanceof Error && err.message) return err.message;
   const msg = (err as { message?: string })?.message;
   return msg || 'Could not reach the tournament server';
+}
+
+// Parse a get_tournament_state payload and apply it everywhere it matters.
+function applyState(data: unknown): TournamentState {
+  const st = parseState(data);
+  tournamentState.set(st);
+  tournamentError.set(null);
+  syncMeta(st);
+  claimRewardIfDue(st);
+  return st;
 }
 
 export async function refreshTournamentState(): Promise<TournamentState | null> {
@@ -109,11 +132,7 @@ export async function refreshTournamentState(): Promise<TournamentState | null> 
     await ensureSignedIn();
     const { data, error } = await supabase.rpc('get_tournament_state');
     if (error) throw new Error(error.message);
-    const st = parseState(data);
-    tournamentState.set(st);
-    tournamentError.set(null);
-    syncMeta(st);
-    return st;
+    return applyState(data);
   } catch (err) {
     tournamentError.set(errorMessage(err));
     return null;
@@ -146,10 +165,7 @@ export async function joinTournament(displayName: string): Promise<void> {
     p_display_name: displayName,
   });
   if (error) throw new Error(error.message);
-  const st = parseState(data);
-  tournamentState.set(st);
-  tournamentError.set(null);
-  syncMeta(st);
+  applyState(data);
 
   await writeFreshTournamentSave();
   if (get(gameMode) === 'tournament') {
@@ -173,6 +189,31 @@ export async function switchMode(target: GameMode): Promise<OfflineReport | null
   const report = await loadGame();
   resetTickClock();
   return report;
+}
+
+// ---- Dev/testing controls (Settings → Testing) -----------------------------
+// Server RPCs from 0003_dev_tournament_controls.sql, guarded by a shared
+// admin key. Both throw with a user-readable message on failure.
+
+// Ends whatever is running, then starts a fresh tournament immediately.
+export async function devStartTournament(key: string, minutes: number): Promise<void> {
+  await ensureSignedIn();
+  const { data, error } = await supabase.rpc('dev_start_tournament', {
+    p_key: key,
+    p_minutes: minutes,
+  });
+  if (error) throw new Error(error.message);
+  applyState(data);
+  void fetchLeaderboard();
+}
+
+// Ends the running tournament right now; ranks (and rewards) finalize immediately.
+export async function devEndTournament(key: string): Promise<void> {
+  await ensureSignedIn();
+  const { data, error } = await supabase.rpc('dev_end_tournament', { p_key: key });
+  if (error) throw new Error(error.message);
+  applyState(data);
+  void fetchLeaderboard();
 }
 
 // Push the current run's net worth to the server, at most once a minute.

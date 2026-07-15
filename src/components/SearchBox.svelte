@@ -57,7 +57,7 @@
   .clear {
     min-height: 28px;
     padding: 0 10px;
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     font-size: 0.8rem;
     color: var(--muted);
   }

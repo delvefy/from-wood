@@ -2,6 +2,7 @@ import { CATEGORY_ORDER, RECIPES, RECIPE_BY_ID } from '../content/recipes';
 import { RESOURCES, RESOURCE_BY_ID } from '../content/resources';
 import { TECH_BY_ID } from '../content/tech';
 import { CRAFTER, GATHERER } from '../content/workers';
+import { getAccount } from './account';
 import { sellPriceFactor, totalCrafters, totalGatherers } from './premium';
 import { game } from './state';
 import { canAfford, grantOutputs, spendInputs, tick } from './tick';
@@ -33,7 +34,7 @@ export function assignedWorkers(s: GameState): number {
 }
 
 export function idleWorkers(s: GameState): number {
-  return totalGatherers(s) - assignedWorkers(s);
+  return totalGatherers(s, getAccount()) - assignedWorkers(s);
 }
 
 export function assignWorker(resourceId: ResourceId, delta: number): void {
@@ -103,7 +104,7 @@ export function assignedCrafters(s: GameState): number {
 }
 
 export function idleCrafters(s: GameState): number {
-  return totalCrafters(s) - assignedCrafters(s);
+  return totalCrafters(s, getAccount()) - assignedCrafters(s);
 }
 
 export function assignCrafter(recipeId: string, delta: number): void {
@@ -195,7 +196,7 @@ export function sellEverything(fraction = 1): void {
   game.update((s) => {
     let gained = 0;
     const f = Math.min(1, Math.max(0, fraction));
-    const priceFactor = sellPriceFactor(s);
+    const priceFactor = sellPriceFactor(getAccount());
     for (const id of s.unlockedResources) {
       const def = RESOURCE_BY_ID[id];
       const n = Math.floor(Math.floor(s.resources[id] ?? 0) * f);
@@ -216,7 +217,7 @@ export function sellResource(resourceId: ResourceId, amount: number | 'all'): vo
     const n = amount === 'all' ? have : Math.min(amount, have);
     if (n <= 0) return s;
     s.resources[resourceId] = (s.resources[resourceId] ?? 0) - n;
-    s.credits += n * def.baseSellPrice * sellPriceFactor(s);
+    s.credits += n * def.baseSellPrice * sellPriceFactor(getAccount());
     return { ...s };
   });
 }

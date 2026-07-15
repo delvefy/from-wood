@@ -3,8 +3,9 @@
   import Icon from './Icon.svelte';
   import ProgressBar from './ProgressBar.svelte';
   import { RESOURCE_BY_ID } from '../content/resources';
-  import { TECH, TECH_BY_ID } from '../content/tech';
-  import { cancelResearch, queueResearch } from '../engine/actions';
+  import { researchTime, techCost, TECH, TECH_BY_ID } from '../content/tech';
+  import { queueResearch } from '../engine/actions';
+  import { gameMode } from '../engine/mode';
   import { game } from '../engine/state';
   import { canAfford } from '../engine/tick';
   import type { TechNode } from '../engine/types';
@@ -180,10 +181,15 @@
     return satisfied ? 'available' : 'locked';
   }
 
+  // Cost and duration are mode-dependent: tournaments run a cheaper price
+  // curve and a compressed research clock.
+  const nodeCost = (node: TechNode) => techCost(node, $gameMode);
+  const nodeTime = (node: TechNode) => researchTime(node, $gameMode);
+
+  // Research locks in when queued — no cancel, no refund.
   function tap(node: TechNode, st: Status) {
     if (moved > 8) return; // was a pan, not a tap
-    if (st === 'available' && canAfford($game, node.cost)) queueResearch(node.id);
-    else if (st === 'active' || st === 'queued') cancelResearch(node.id);
+    if (st === 'available' && canAfford($game, nodeCost(node))) queueResearch(node.id);
   }
 
   function tapMaterial(e: Event, id: string) {
@@ -198,7 +204,7 @@
 
   // Nodes the player can start right now: prereqs met AND affordable.
   const readyNodes = $derived(
-    TECH.filter((n) => status(n) === 'available' && canAfford($game, n.cost)),
+    TECH.filter((n) => status(n) === 'available' && canAfford($game, nodeCost(n))),
   );
 
   // Cycles through ready nodes so repeated taps tour all of them.
@@ -217,19 +223,15 @@
   const queuedIds = $derived($game.researchQueue.slice(1));
 
   const queueTotalSeconds = $derived(
-    (activeNode ? activeNode.researchTimeSeconds - $game.researchProgress : 0) +
-      queuedIds.reduce((sum, id) => sum + (TECH_BY_ID[id]?.researchTimeSeconds ?? 0), 0),
+    (activeNode ? nodeTime(activeNode) - $game.researchProgress : 0) +
+      queuedIds.reduce((sum, id) => {
+        const node = TECH_BY_ID[id];
+        return sum + (node ? nodeTime(node) : 0);
+      }, 0),
   );
 
   function jumpToNode(id: string) {
     focusTech.set(id);
-  }
-
-  function clearQueue() {
-    // cancelResearch cascades to dependents and no-ops on already-removed ids,
-    // so cancelling each queued id (snapshot, not live store) clears everything.
-    for (const id of [...queuedIds]) cancelResearch(id);
-    queueOpen = false;
   }
 </script>
 
@@ -238,18 +240,15 @@
     {#if activeNode}
       <div class="slot-head">
         <span>🔬 Researching: <strong>{activeNode.name}</strong></span>
-        <span class="muted">{formatDuration(Math.ceil(activeNode.researchTimeSeconds - $game.researchProgress))}</span>
+        <span class="muted">{formatDuration(Math.ceil(nodeTime(activeNode) - $game.researchProgress))}</span>
       </div>
-      <ProgressBar value={$game.researchProgress} max={activeNode.researchTimeSeconds} />
+      <ProgressBar value={$game.researchProgress} max={nodeTime(activeNode)} />
       {#if queuedIds.length > 0}
         <div class="queue-bar">
           <button class="queue-toggle" onclick={() => (queueOpen = !queueOpen)}>
             <span class="caret" class:open={queueOpen}>▸</span>
             {queuedIds.length} queued · ~{formatDuration(Math.ceil(queueTotalSeconds))} total
           </button>
-          {#if queueOpen}
-            <button class="queue-clear" onclick={clearQueue}>Clear all</button>
-          {/if}
         </div>
         {#if queueOpen}
           <ol class="queue-list">
@@ -260,10 +259,7 @@
                   <span class="qnum">{i + 2}.</span>
                   {node?.name ?? id}
                 </button>
-                <span class="qtime muted">{node ? formatDuration(node.researchTimeSeconds) : ''}</span>
-                <button class="qcancel" aria-label="Cancel {node?.name ?? id}" onclick={() => cancelResearch(id)}>
-                  ✕
-                </button>
+                <span class="qtime muted">{node ? formatDuration(Math.ceil(nodeTime(node))) : ''}</span>
               </li>
             {/each}
           </ol>
@@ -301,7 +297,7 @@
       </svg>
       {#each TECH as node (node.id)}
         {@const st = status(node)}
-        {@const ready = st === 'available' && canAfford($game, node.cost)}
+        {@const ready = st === 'available' && canAfford($game, nodeCost(node))}
         <!-- A div, not a button: cost chips inside must stay tappable even when
              the node itself is locked/unaffordable (disabled buttons swallow
              child clicks). tap() guards status and affordability instead. -->
@@ -326,7 +322,7 @@
           <span class="tdesc">{node.description}</span>
           {#if st === 'available' || st === 'locked'}
             <span class="tprice">
-              {#each Object.entries(node.cost) as [id, n] (id)}
+              {#each Object.entries(nodeCost(node)) as [id, n] (id)}
                 {#if $settings.materialLinks}
                   <button
                     class="pitem link"
@@ -350,17 +346,17 @@
             {#if st === 'owned'}
               ✓ Done
             {:else if st === 'active'}
-              {formatDuration(Math.ceil(node.researchTimeSeconds - $game.researchProgress))}… ✕
+              {formatDuration(Math.ceil(nodeTime(node) - $game.researchProgress))}…
             {:else if st === 'queued'}
-              Queued #{$game.researchQueue.indexOf(node.id) + 1} ✕
+              Queued #{$game.researchQueue.indexOf(node.id) + 1}
             {:else if ready}
-              ▶ Tap to research · {formatDuration(node.researchTimeSeconds)}
+              ▶ Tap to research · {formatDuration(Math.ceil(nodeTime(node)))}
             {:else}
-              ⏱ {formatDuration(node.researchTimeSeconds)}
+              ⏱ {formatDuration(Math.ceil(nodeTime(node)))}
             {/if}
           </span>
           {#if st === 'active'}
-            <ProgressBar value={$game.researchProgress} max={node.researchTimeSeconds} />
+            <ProgressBar value={$game.researchProgress} max={nodeTime(node)} />
           {/if}
         </div>
       {/each}
@@ -437,14 +433,6 @@
     transform: rotate(90deg);
   }
 
-  .queue-clear {
-    min-height: 32px;
-    padding: 2px 10px;
-    border-radius: var(--radius-pill);
-    font-size: 0.75rem;
-    color: var(--danger);
-  }
-
   .queue-list {
     margin: 0;
     padding: 0;
@@ -485,17 +473,6 @@
     flex: none;
     font-size: 0.7rem;
     font-variant-numeric: tabular-nums;
-  }
-
-  .qcancel {
-    flex: none;
-    width: 34px;
-    min-height: 34px;
-    padding: 0;
-    border: none;
-    background: none;
-    color: var(--muted);
-    font-size: 0.8rem;
   }
 
   .viewport {

@@ -13,6 +13,7 @@
     unassignAllCrafters,
   } from '../engine/actions';
   import { account } from '../engine/account';
+  import { gameMode, modeTimeFactor } from '../engine/mode';
   import { craftTimeFactor, totalCrafters } from '../engine/premium';
   import { game } from '../engine/state';
   import { collapsed, isCollapsed, toggleCollapsed } from '../util/collapse';
@@ -101,7 +102,7 @@
       <div class="list">
         {#each group.unlocked as recipe (recipe.id)}
             {@const assigned = $game.craftAssignment[recipe.id] ?? 0}
-            {@const duration = recipe.craftTimeSeconds * craftTimeFactor($account)}
+            {@const duration = recipe.craftTimeSeconds * craftTimeFactor($account) * modeTimeFactor($gameMode)}
             {@const raw = rawEntries(recipe.id)}
             <div class="card craft">
               <button

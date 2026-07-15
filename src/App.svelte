@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import BottomNav from './components/BottomNav.svelte';
-  import Icon from './components/Icon.svelte';
   import ModeSwitch from './components/ModeSwitch.svelte';
   import CraftView from './components/CraftView.svelte';
   import GatherView from './components/GatherView.svelte';
@@ -10,13 +9,10 @@
   import ResourceBar from './components/ResourceBar.svelte';
   import SettingsView from './components/SettingsView.svelte';
   import TournamentView from './components/TournamentView.svelte';
-  import { RESOURCE_BY_ID } from './content/resources';
-  import { TECH_BY_ID } from './content/tech';
   import { resetTickClock, runTick } from './engine/actions';
   import { initCloudSave, maybeCloudPush } from './engine/cloudSave';
-  import { loadGame, offlineReport, saveGame } from './engine/save';
+  import { loadGame, saveGame } from './engine/save';
   import { maybeSubmitScore } from './engine/tournament';
-  import { formatDuration, formatNumber } from './util/format';
   import { activeTab } from './util/nav';
 
   let ready = $state(false);
@@ -79,24 +75,6 @@
     {/if}
   </main>
   <BottomNav />
-
-  {#if $offlineReport}
-    <div class="overlay" role="dialog" aria-label="Offline progress">
-      <div class="modal">
-        <h2>While you were away…</h2>
-        <p class="muted">{formatDuration($offlineReport.seconds)} of automated work</p>
-        <ul>
-          {#each $offlineReport.techCompleted as id (id)}
-            <li>🔬 Researched {TECH_BY_ID[id]?.name ?? id}</li>
-          {/each}
-          {#each Object.entries($offlineReport.resourceGains) as [id, gain] (id)}
-            <li><Icon {id} /> +{formatNumber(gain)} {RESOURCE_BY_ID[id]?.name ?? id}</li>
-          {/each}
-        </ul>
-        <button class="primary" onclick={() => offlineReport.set(null)}>Nice</button>
-      </div>
-    </div>
-  {/if}
 {:else}
   <div class="loading">Loading…</div>
 {/if}
@@ -115,50 +93,5 @@
     align-items: center;
     justify-content: center;
     color: var(--muted);
-  }
-
-  .overlay {
-    position: fixed;
-    inset: 0;
-    background: rgb(0 0 0 / 55%);
-    backdrop-filter: blur(3px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-    z-index: 50;
-  }
-
-  .modal {
-    background: var(--panel);
-    border: 1px solid color-mix(in srgb, var(--magic) 40%, var(--border));
-    border-radius: var(--radius);
-    box-shadow:
-      var(--shadow),
-      0 0 24px color-mix(in srgb, var(--magic) 25%, transparent);
-    padding: 20px;
-    width: min(92vw, 360px);
-  }
-
-  .modal h2 {
-    margin: 0 0 4px;
-  }
-
-  .modal ul {
-    margin: 12px 0;
-    padding-left: 4px;
-    list-style: none;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .primary {
-    width: 100%;
-    background: var(--grad-primary);
-    border: none;
-    color: #fff;
-    font-weight: 600;
-    box-shadow: 0 0 10px color-mix(in srgb, var(--magic) 35%, transparent);
   }
 </style>

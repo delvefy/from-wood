@@ -1,7 +1,9 @@
+import { get } from 'svelte/store';
 import { RESOURCES } from '../content/resources';
-import { TECH } from '../content/tech';
+import { techCost, TECH } from '../content/tech';
 import { CRAFTER, GATHERER } from '../content/workers';
 import { getAccount } from './account';
+import { gameMode, type GameMode } from './mode';
 import { sellPriceFactor } from './premium';
 import type { GameState, WorkerConfig } from './types';
 
@@ -10,13 +12,19 @@ const PRICE: Record<string, number> = Object.fromEntries(
   RESOURCES.map((r) => [r.id, r.baseSellPrice]),
 );
 
-// Sell value of each tech node's resource cost.
-const TECH_VALUE: Record<string, number> = Object.fromEntries(
-  TECH.map((t) => [
-    t.id,
-    Object.entries(t.cost).reduce((sum, [id, n]) => sum + n * (PRICE[id] ?? 0), 0),
+// Sell value of each tech node's resource cost — per mode, since tournament
+// research runs a much cheaper price curve than the village.
+const TECH_VALUE: Record<GameMode, Record<string, number>> = Object.fromEntries(
+  (['main', 'tournament'] as GameMode[]).map((mode) => [
+    mode,
+    Object.fromEntries(
+      TECH.map((t) => [
+        t.id,
+        Object.entries(techCost(t, mode)).reduce((sum, [id, n]) => sum + n * (PRICE[id] ?? 0), 0),
+      ]),
+    ),
   ]),
-);
+) as Record<GameMode, Record<string, number>>;
 
 // Credits spent hiring up to `owned` workers: closed-form geometric sum, so no
 // loop over the workforce (ignores the per-purchase rounding, fine for display).
@@ -32,9 +40,10 @@ function hiredValue(config: WorkerConfig, owned: number): number {
 export function totalValue(s: GameState): number {
   let total = s.credits;
   const priceFactor = sellPriceFactor(getAccount());
+  const techValue = TECH_VALUE[get(gameMode)];
   for (const [id, n] of Object.entries(s.resources)) total += n * (PRICE[id] ?? 0) * priceFactor;
   total += hiredValue(GATHERER, s.workers) + hiredValue(CRAFTER, s.crafters);
-  for (const id of s.unlockedTech) total += TECH_VALUE[id] ?? 0;
-  for (const id of s.researchQueue) total += TECH_VALUE[id] ?? 0;
+  for (const id of s.unlockedTech) total += techValue[id] ?? 0;
+  for (const id of s.researchQueue) total += techValue[id] ?? 0;
   return total;
 }

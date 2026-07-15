@@ -9,13 +9,14 @@ export type SmallEffect = 'craft' | 'both' | `gather:${string}`;
 // majors). Node i requires node i-1; the target major's `requires` entry for
 // `from` is rewired to the last node of the chain. Coordinates are
 // interpolated between the anchors with a slight alternating perpendicular
-// wiggle. Cost grows ~25% per step along the chain.
+// wiggle. Costs only set the resource mix — the global cost curve (index.ts)
+// scales the amounts.
 export interface PathSpec {
   from: string; // anchor node id (core node or major)
   to: string; // major whose `requires` gets rewired through this path
   branch: TechBranch;
   eff: SmallEffect;
-  cost: Record<string, number>; // cost of the first node
+  cost: Record<string, number>; // resource mix (amounts rescaled by the curve)
   time: number; // research seconds per node
   names: string[]; // one small node per name, in from->to order
   flip?: boolean; // invert the wiggle side (to dodge nodes near the edge)
@@ -30,7 +31,7 @@ export interface ClusterSpec {
   anchor: string;
   branch: TechBranch;
   eff: SmallEffect;
-  cost: Record<string, number>; // cost of the first spoke's inner node
+  cost: Record<string, number>; // resource mix (amounts rescaled by the curve)
   time: number;
   angle: number;
   spread: number;

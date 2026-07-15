@@ -7,6 +7,7 @@
   import { GATHERER } from '../content/workers';
   import { account } from '../engine/account';
   import { assignAllWorkers, assignWorker, idleWorkers, unassignAllWorkers } from '../engine/actions';
+  import { gameMode, modeTimeFactor } from '../engine/mode';
   import { harvestMultiplier } from '../engine/multipliers';
   import { gatherTimeFactor, totalGatherers } from '../engine/premium';
   import { game } from '../engine/state';
@@ -60,7 +61,7 @@
 <div class="list">
   {#each gatherable as r (r.id)}
     {@const assigned = $game.gatherAssignment[r.id] ?? 0}
-    {@const cycle = r.extractTimeSeconds * gatherTimeFactor($account)}
+    {@const cycle = r.extractTimeSeconds * gatherTimeFactor($account) * modeTimeFactor($gameMode)}
     {@const yield_ = assigned * r.harvestAmount * harvestMultiplier($game.multipliers, r.id)}
     <div class="card gather">
       <button

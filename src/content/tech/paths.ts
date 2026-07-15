@@ -2,9 +2,10 @@ import type { PathSpec } from './specs';
 
 // Small-node chains along each same-branch major edge. Names become node ids
 // (slugified), so keep them unique across the whole tree. Costs use resources
-// the player is guaranteed to have unlocked by the path's `from` anchor, and
-// grow ~40% per step; `time` is per NODE and scales with the era the chain
-// leads into (minutes early, hours late).
+// the player is guaranteed to have unlocked by the path's `from` anchor and
+// only set the resource MIX — the global cost curve (index.ts) sets amounts.
+// `time` is per NODE and scales with the era the chain leads into (minutes
+// early, hours late).
 export const PATHS: PathSpec[] = [
   // ---- Tech branch (right) ----------------------------------------------------
   { from: 'metallurgy', to: 'ironworking', branch: 'tech', eff: 'craft', cost: { copper_ingot: 4, stone_brick: 4 }, time: 180, bow: 22, names: ['Ore Roasting', 'Bloomery Draft', 'Slag Tapping'] },

@@ -1,11 +1,13 @@
+import { get } from 'svelte/store';
 import { CATEGORY_ORDER, RECIPES, RECIPE_BY_ID } from '../content/recipes';
 import { RESOURCES, RESOURCE_BY_ID } from '../content/resources';
-import { TECH_BY_ID } from '../content/tech';
+import { techCost, TECH_BY_ID } from '../content/tech';
 import { CRAFTER, GATHERER } from '../content/workers';
 import { getAccount } from './account';
+import { gameMode } from './mode';
 import { sellPriceFactor, totalCrafters, totalGatherers } from './premium';
 import { game } from './state';
-import { canAfford, grantOutputs, spendInputs, tick } from './tick';
+import { canAfford, spendInputs, tick } from './tick';
 import type { GameState, ResourceId, TechId, WorkerConfig } from './types';
 
 // ---- Game loop -------------------------------------------------------------
@@ -144,7 +146,9 @@ export function hireCrafter(): void {
 
 // ---- Research queue ------------------------------------------------------------
 
-// Research costs resources, paid up-front when the node is queued.
+// Research costs resources, paid up-front when the node is queued, and locks
+// in: there is no cancel or refund. Prices are mode-dependent (tournaments
+// run a much cheaper curve).
 export function queueResearch(techId: TechId): void {
   game.update((s) => {
     const node = TECH_BY_ID[techId];
@@ -152,40 +156,10 @@ export function queueResearch(techId: TechId): void {
     const satisfied = node.requires.every(
       (r) => s.unlockedTech.includes(r) || s.researchQueue.includes(r),
     );
-    if (!satisfied || !canAfford(s, node.cost)) return s;
-    spendInputs(s, node.cost);
+    const cost = techCost(node, get(gameMode));
+    if (!satisfied || !canAfford(s, cost)) return s;
+    spendInputs(s, cost);
     return { ...s, researchQueue: [...s.researchQueue, techId] };
-  });
-}
-
-// Removes a queued node plus everything queued behind it that depends on it.
-// All removed nodes get their resource cost refunded in full.
-export function cancelResearch(techId: TechId): void {
-  game.update((s) => {
-    if (!s.researchQueue.includes(techId)) return s;
-    const removed = new Set<TechId>([techId]);
-    let changed = true;
-    while (changed) {
-      changed = false;
-      for (const id of s.researchQueue) {
-        if (removed.has(id)) continue;
-        const node = TECH_BY_ID[id];
-        if (node?.requires.some((r) => removed.has(r))) {
-          removed.add(id);
-          changed = true;
-        }
-      }
-    }
-    for (const id of removed) {
-      const node = TECH_BY_ID[id];
-      if (node) grantOutputs(s, node.cost);
-    }
-    const wasHead = s.researchQueue[0] === techId;
-    return {
-      ...s,
-      researchQueue: s.researchQueue.filter((id) => !removed.has(id)),
-      researchProgress: wasHead ? 0 : s.researchProgress,
-    };
   });
 }
 

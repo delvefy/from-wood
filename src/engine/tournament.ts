@@ -4,13 +4,7 @@ import { ensureSignedIn, supabase } from '../lib/supabase';
 import { grantTournamentReward } from './account';
 import { resetTickClock } from './actions';
 import { gameMode, type GameMode } from './mode';
-import {
-  loadGame,
-  saveGame,
-  savesSuspended,
-  writeFreshTournamentSave,
-  type OfflineReport,
-} from './save';
+import { loadGame, saveGame, savesSuspended, writeFreshTournamentSave } from './save';
 import { game } from './state';
 import { getTournamentMeta, setTournamentMeta } from './tournamentMeta';
 import { totalValue } from './worth';
@@ -186,15 +180,14 @@ export async function joinTournament(displayName: string): Promise<void> {
 }
 
 // Swap the live save slot: saves the active one, flips mode, loads the other
-// (applying its offline catch-up, which loadGame reports via offlineReport).
-export async function switchMode(target: GameMode): Promise<OfflineReport | null> {
-  if (get(gameMode) === target) return null;
+// (applying its offline catch-up).
+export async function switchMode(target: GameMode): Promise<void> {
+  if (get(gameMode) === target) return;
   if (get(gameMode) === 'tournament') maybeSubmitScore(true);
   await saveGame();
   gameMode.set(target);
-  const report = await loadGame();
+  await loadGame();
   resetTickClock();
-  return report;
 }
 
 // Push the current run's net worth to the server, at most once a minute.

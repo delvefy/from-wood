@@ -9,7 +9,7 @@ export const CORE: TechNode[] = [
     id: 'basic_tools',
     name: 'Basic Tools',
     description: 'Gather efficiency +2%',
-    cost: { wood: 3, water: 2 },
+    cost: { wood: 10, water: 10 },
     researchTimeSeconds: 30,
     requires: [],
     effects: [{ kind: 'gatherEfficiency', resource: 'all', percent: 2 }],

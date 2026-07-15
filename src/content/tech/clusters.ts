@@ -4,7 +4,8 @@ import type { ClusterSpec } from './specs';
 // -90 = up, 180 = left. Fans point AWAY from the anchor's path edges — the
 // validate script warns on node pairs closer than ~100px, so check it after
 // moving anything. Names become node ids; keep them unique tree-wide.
-// Cost/time match the anchor's era (cost grows ~40% per spoke/depth step).
+// `time` matches the anchor's era; `cost` only sets the resource MIX — the
+// global cost curve (index.ts) sets amounts.
 export const CLUSTERS: ClusterSpec[] = [
   // ---- Inner core -------------------------------------------------------------
   { anchor: 'blueprints', branch: 'tech', eff: 'craft', cost: { plank: 8, paper: 4 }, time: 300, angle: 90, spread: 80, names: ['Draft Tables', 'Ink Lines', 'Careful Copies'] },

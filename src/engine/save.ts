@@ -1,6 +1,5 @@
 import { del as idbDel, get as idbGet, set as idbSet } from 'idb-keyval';
 import { get } from 'svelte/store';
-import { writable } from 'svelte/store';
 import { migrateLegacyPremium } from './account';
 import { computeMultipliers } from './multipliers';
 import { gameMode, type GameMode } from './mode';
@@ -18,16 +17,6 @@ const SAVE_KEYS: Record<GameMode, string> = {
 };
 const LEGACY_SAVE_KEYS = ['from-wood-save-v1'];
 export const OFFLINE_CAP_SECONDS = 8 * 3600;
-
-export interface OfflineReport {
-  seconds: number;
-  resourceGains: Record<string, number>;
-  techCompleted: string[];
-}
-
-// Set by loadGame whenever catch-up produced something worth showing; the app
-// shell renders it as the "While you were away…" modal (also on slot switch).
-export const offlineReport = writable<OfflineReport | null>(null);
 
 export async function saveGame(): Promise<void> {
   if (suspended) return;
@@ -78,9 +67,9 @@ export async function restoreSlots(slots: SlotSnapshot): Promise<void> {
     : idbDel(SAVE_KEYS.tournament));
 }
 
-// Loads the active slot's save (if any), fast-forwards all timed work for the
-// time away (capped), and returns a summary of what was gained.
-export async function loadGame(): Promise<OfflineReport | null> {
+// Loads the active slot's save (if any) and silently fast-forwards all timed
+// work for the time away (capped).
+export async function loadGame(): Promise<void> {
   for (const key of LEGACY_SAVE_KEYS) void idbDel(key);
   const mode = get(gameMode);
   const saved = (await idbGet(SAVE_KEYS[mode])) as Partial<GameState> | undefined;
@@ -88,7 +77,7 @@ export async function loadGame(): Promise<OfflineReport | null> {
     // An empty tournament slot starts fresh rather than leaking village state
     // (normally unreachable: joining writes a fresh save before switching).
     if (mode === 'tournament') game.set(createInitialState());
-    return null;
+    return;
   }
 
   const base = createInitialState();
@@ -128,26 +117,10 @@ export async function loadGame(): Promise<OfflineReport | null> {
     OFFLINE_CAP_SECONDS,
   );
 
-  let report: OfflineReport | null = null;
-  if (elapsed >= 5) {
-    const resourcesBefore = { ...s.resources };
-    const techBefore = new Set(s.unlockedTech);
-    tick(s, elapsed);
-    const resourceGains: Record<string, number> = {};
-    for (const [id, value] of Object.entries(s.resources)) {
-      const gain = value - (resourcesBefore[id] ?? 0);
-      if (gain > 0.005) resourceGains[id] = gain;
-    }
-    const techCompleted = s.unlockedTech.filter((id) => !techBefore.has(id));
-    if (Object.keys(resourceGains).length > 0 || techCompleted.length > 0) {
-      report = { seconds: elapsed, resourceGains, techCompleted };
-    }
-  }
+  if (elapsed > 0) tick(s, elapsed);
 
   s.lastSeen = now;
   game.set(s);
-  if (report) offlineReport.set(report);
-  return report;
 }
 
 // Called on tournament join: overwrite the tournament slot with a brand-new

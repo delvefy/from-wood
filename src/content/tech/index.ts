@@ -1,3 +1,4 @@
+import type { GameMode } from '../../engine/mode';
 import type { TechEffect, TechNode } from '../../engine/types';
 import { RESOURCE_BY_ID } from '../resources';
 import { CLUSTERS } from './clusters';
@@ -32,11 +33,66 @@ const slug = (name: string) =>
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');
 
-// Small-node cost curve: ~40% more per step along a chain/fan, rounded.
-const grow = (base: Record<string, number>, step: number): Record<string, number> =>
-  Object.fromEntries(
-    Object.entries(base).map(([id, n]) => [id, Math.max(1, Math.round(n * 1.4 ** step))]),
-  );
+// ---- Balance curves ---------------------------------------------------------
+// Authored costs and times only set the tree's SHAPE: cost entries fix each
+// node's resource mix, and the authored 30s..86400s times fix how eras relate.
+// The passes below rescale both onto per-mode targets:
+// - Time: node.researchTimeSeconds is baked at VILLAGE pace, normalized so the
+//   whole tree sums to RESEARCH_TOTAL_SECONDS.main of continuous research.
+//   Tournament runs the same queue compressed to its own total — the engine
+//   and Research UI read durations through researchTime().
+// - Cost: each node's cost value (amounts × base sell price) follows a power
+//   curve of its authored time, from rootValue to endValue. node.cost holds
+//   the village cost; tournament costs live in a side table read via techCost().
+export const RESEARCH_TOTAL_SECONDS: Record<GameMode, number> = {
+  main: 200 * 86_400, // 200 days of continuous research
+  tournament: 48 * 3_600, // 48 hours
+};
+
+const COST_CURVE: Record<GameMode, { rootValue: number; endValue: number }> = {
+  main: { rootValue: 20, endValue: 100_000 }, // 10 wood + 10 water at the root
+  tournament: { rootValue: 2, endValue: 1_000 }, // 1 wood + 1 water at the root
+};
+
+const AUTHORED_TIME = { root: 30, end: 86_400 };
+
+const price = (id: string) => RESOURCE_BY_ID[id]?.baseSellPrice ?? 0;
+const costValue = (cost: Record<string, number>): number =>
+  Object.entries(cost).reduce((sum, [id, n]) => sum + n * price(id), 0);
+
+function targetCostValue(mode: GameMode, authoredSeconds: number): number {
+  const { rootValue, endValue } = COST_CURVE[mode];
+  const exp = Math.log(endValue / rootValue) / Math.log(AUTHORED_TIME.end / AUTHORED_TIME.root);
+  return rootValue * (authoredSeconds / AUTHORED_TIME.root) ** exp;
+}
+
+// Amounts ≥ 100 round to two significant digits so scaled costs read cleanly.
+const niceAmount = (n: number): number => {
+  if (n < 100) return Math.round(n);
+  const unit = 10 ** (Math.floor(Math.log10(n)) - 1);
+  return Math.round(n / unit) * unit;
+};
+
+// Rescales a cost mix so its value lands on `target`. Entries that round to
+// zero drop out (a small budget can't afford one locomotive); the cheapest
+// ingredient then absorbs whatever gap rounding and drops left behind.
+function scaledCost(mix: Record<string, number>, target: number): Record<string, number> {
+  const value = costValue(mix);
+  if (value <= 0) return { ...mix };
+  const scale = target / value;
+  const out: Record<string, number> = {};
+  for (const [id, n] of Object.entries(mix)) {
+    const amount = niceAmount(n * scale);
+    if (amount > 0) out[id] = amount;
+  }
+  const cheapest = Object.keys(mix).reduce((a, b) => (price(a) <= price(b) ? a : b));
+  const gap = target - costValue(out);
+  if (Math.abs(gap) >= price(cheapest)) {
+    out[cheapest] = Math.max(1, (out[cheapest] ?? 0) + Math.round(gap / price(cheapest)));
+  }
+  if (Object.keys(out).length === 0) out[cheapest] = 1;
+  return out;
+}
 
 function smallMeta(eff: SmallEffect): { description: string; effects: TechEffect[] } {
   if (eff === 'craft') {
@@ -90,7 +146,7 @@ for (const p of PATHS) {
       id,
       name,
       ...smallMeta(p.eff),
-      cost: grow(p.cost, i),
+      cost: p.cost,
       researchTimeSeconds: p.time,
       requires: [prev],
       branch: p.branch,
@@ -155,7 +211,7 @@ const clusterNodes: TechNode[] = CLUSTERS.flatMap((c) => {
         id,
         name,
         ...smallMeta(c.eff),
-        cost: grow(c.cost, s + d),
+        cost: c.cost,
         researchTimeSeconds: c.time,
         requires: [prev],
         branch: c.branch,
@@ -168,8 +224,35 @@ const clusterNodes: TechNode[] = CLUSTERS.flatMap((c) => {
   });
 });
 
-export const TECH: TechNode[] = [...CORE, ...majorNodes, ...pathNodes, ...clusterNodes];
+const AUTHORED: TechNode[] = [...CORE, ...majorNodes, ...pathNodes, ...clusterNodes];
+
+const VILLAGE_TIME_SCALE =
+  RESEARCH_TOTAL_SECONDS.main / AUTHORED.reduce((sum, n) => sum + n.researchTimeSeconds, 0);
+
+// Baked at village pace/prices; tournament reads go through the helpers below.
+export const TECH: TechNode[] = AUTHORED.map((node) => ({
+  ...node,
+  cost: scaledCost(node.cost, targetCostValue('main', node.researchTimeSeconds)),
+  researchTimeSeconds: Math.round(node.researchTimeSeconds * VILLAGE_TIME_SCALE),
+}));
 
 export const TECH_BY_ID: Record<string, TechNode> = Object.fromEntries(
   TECH.map((t) => [t.id, t]),
 );
+
+const TOURNAMENT_COST: Record<string, Record<string, number>> = Object.fromEntries(
+  AUTHORED.map((n) => [n.id, scaledCost(n.cost, targetCostValue('tournament', n.researchTimeSeconds))]),
+);
+
+export function techCost(node: TechNode, mode: GameMode): Record<string, number> {
+  return mode === 'tournament' ? (TOURNAMENT_COST[node.id] ?? node.cost) : node.cost;
+}
+
+// Tournament compresses the village queue by a flat factor (48h / 200d).
+export function researchTimeFactor(mode: GameMode): number {
+  return RESEARCH_TOTAL_SECONDS[mode] / RESEARCH_TOTAL_SECONDS.main;
+}
+
+export function researchTime(node: TechNode, mode: GameMode): number {
+  return node.researchTimeSeconds * researchTimeFactor(mode);
+}

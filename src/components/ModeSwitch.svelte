@@ -1,14 +1,35 @@
 <script lang="ts">
   import { switchMode } from '../engine/tournament';
+  import { getTournamentMeta } from '../engine/tournamentMeta';
   import { activeTab } from '../util/nav';
   import { uiMode } from '../util/theme';
 
   let switching = $state(false);
 
-  // Tournament side of the radio doubles as the way back to the hub
-  // (standings, join) while a run is being played.
-  function selectTournament() {
-    activeTab.set('tournament');
+  // Leave mode-only tabs behind when swapping slots so both sides land on
+  // the same gather page.
+  function landOnGather() {
+    if ($activeTab === 'tournament' || $activeTab === 'leaderboard') activeTab.set('gather');
+  }
+
+  // With a live run to resume, switching sides works exactly like Village:
+  // swap the slot and land on the gather page. Without one (never joined, or
+  // the run ended) open the hub, where joining lives.
+  async function selectTournament() {
+    if (switching) return;
+    const meta = getTournamentMeta();
+    const now = Date.now();
+    if (!meta || now < meta.startsAt || now > meta.endsAt) {
+      activeTab.set('tournament');
+      return;
+    }
+    switching = true;
+    try {
+      await switchMode('tournament'); // no-op when the tournament slot is already live
+    } finally {
+      switching = false;
+    }
+    landOnGather();
   }
 
   async function selectVillage() {
@@ -19,7 +40,7 @@
     } finally {
       switching = false;
     }
-    if ($activeTab === 'tournament') activeTab.set('gather');
+    landOnGather();
   }
 </script>
 

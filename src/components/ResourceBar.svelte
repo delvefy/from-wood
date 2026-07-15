@@ -1,16 +1,23 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
+  import { gameMode } from '../engine/mode';
   import { game } from '../engine/state';
   import { totalValue } from '../engine/worth';
   import { formatCredits } from '../util/format';
   import { activeTab } from '../util/nav';
+
+  // The value doubles as the door to the standings: tournament runs open the
+  // hub (group standings), village opens the all-time top 50.
+  function openTop() {
+    activeTab.set($gameMode === 'tournament' ? 'tournament' : 'leaderboard');
+  }
 </script>
 
 <header>
-  <div class="total">
-    <div>Total Value: <strong>{formatCredits(totalValue($game))}</strong></div>
-    <div class="hint">total price of everything you own</div>
-  </div>
+  <button class="total" onclick={openTop} title="See the top players">
+    <span class="line">Total Value: <strong>{formatCredits(totalValue($game))}</strong></span>
+    <span class="line hint">total price of everything you own · tap for top players</span>
+  </button>
   <button
     class="theme-toggle"
     class:active={$activeTab === 'settings'}
@@ -44,6 +51,16 @@
     letter-spacing: 0.08em;
     color: var(--muted);
     font-variant-numeric: tabular-nums;
+    background: none;
+    border: none;
+    padding: 0;
+    text-align: left;
+    min-height: 0;
+    cursor: pointer;
+  }
+
+  .total .line {
+    display: block;
   }
 
   .total .hint {

@@ -9,10 +9,12 @@
   import ResourceBar from './components/ResourceBar.svelte';
   import SettingsView from './components/SettingsView.svelte';
   import TournamentView from './components/TournamentView.svelte';
+  import VillageBoardView from './components/VillageBoardView.svelte';
   import { resetTickClock, runTick } from './engine/actions';
   import { initCloudSave, maybeCloudPush } from './engine/cloudSave';
   import { loadGame, saveGame } from './engine/save';
   import { maybeSubmitScore } from './engine/tournament';
+  import { maybeSubmitVillageScore } from './engine/villageBoard';
   import { activeTab } from './util/nav';
 
   let ready = $state(false);
@@ -29,6 +31,7 @@
       tickTimer = window.setInterval(() => {
         runTick();
         maybeSubmitScore();
+        maybeSubmitVillageScore();
       }, 1000);
       saveTimer = window.setInterval(() => {
         void saveGame();
@@ -40,6 +43,7 @@
       if (document.visibilityState === 'hidden') {
         void saveGame();
         maybeSubmitScore(true);
+        maybeSubmitVillageScore(true);
         maybeCloudPush('hide');
       }
     };
@@ -68,6 +72,8 @@
       <ResearchView />
     {:else if $activeTab === 'tournament'}
       <TournamentView />
+    {:else if $activeTab === 'leaderboard'}
+      <VillageBoardView />
     {:else if $activeTab === 'settings'}
       <SettingsView />
     {:else}

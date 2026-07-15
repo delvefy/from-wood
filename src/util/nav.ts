@@ -1,7 +1,14 @@
 import { writable } from 'svelte/store';
 import { RESOURCE_BY_ID } from '../content/resources';
 
-export type Tab = 'gather' | 'craft' | 'research' | 'market' | 'tournament' | 'settings';
+export type Tab =
+  | 'gather'
+  | 'craft'
+  | 'research'
+  | 'market'
+  | 'tournament'
+  | 'settings'
+  | 'leaderboard';
 
 export const activeTab = writable<Tab>('gather');
 
@@ -12,18 +19,27 @@ export const accountMode = writable<'signin' | 'register'>('signin');
 // Per-view search text ('gather' | 'craft' | 'market'), session-only.
 export const searchFilters = writable<Record<string, string>>({});
 
+// Search never follows the player around: leaving a tab clears all filters.
+let lastTab: Tab = 'gather';
+activeTab.subscribe((tab) => {
+  if (tab === lastTab) return;
+  lastTab = tab;
+  searchFilters.set({});
+});
+
 export function setSearch(view: string, text: string): void {
   searchFilters.update((s) => ({ ...s, [view]: text }));
 }
 
 // Jump to where a material comes from: gatherable → Gather, crafted → Craft,
-// with that view's search filter pre-set to the material's name.
+// with that view's search filter pre-set to the material's name. The tab is
+// switched first so the tab-change clear cannot wipe the preset filter.
 export function openMaterial(resourceId: string): void {
   const resource = RESOURCE_BY_ID[resourceId];
   if (!resource) return;
   const tab: Tab = resource.harvestAmount > 0 ? 'gather' : 'craft';
-  setSearch(tab, resource.name);
   activeTab.set(tab);
+  setSearch(tab, resource.name);
 }
 
 // A tech node id another view asked the Research tree to center on (locked

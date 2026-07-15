@@ -157,6 +157,17 @@ export async function fetchLeaderboard(): Promise<void> {
   }
 }
 
+// Hard-reset support: delete the player's tournament entries server-side and
+// forget everything the client knows about them. Without this, the next
+// get_tournament_state would re-adopt the old entry (and re-claim its reward).
+export async function resetTournamentEntries(): Promise<void> {
+  await ensureSignedIn();
+  const { error } = await supabase.rpc('hard_reset_player');
+  if (error) throw new Error(error.message);
+  tournamentState.set(null);
+  leaderboard.set([]);
+}
+
 // Join the running tournament and enter the (brand-new) tournament run.
 // Throws with a user-readable message on failure.
 export async function joinTournament(displayName: string): Promise<void> {

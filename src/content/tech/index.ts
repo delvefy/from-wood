@@ -248,11 +248,36 @@ export function techCost(node: TechNode, mode: GameMode): Record<string, number>
   return mode === 'tournament' ? (TOURNAMENT_COST[node.id] ?? node.cost) : node.cost;
 }
 
+// Village-only early-game pacing: the root and every node within 2 hops of it
+// research fast so a fresh village gets moving, regardless of what the
+// 200-day normalization would give them. Applied at read time so the rest of
+// the tree (and all tournament times) keep their normalized values.
+const VILLAGE_TIME_OVERRIDES: Record<string, number> = {
+  basic_tools: 30,
+  // 1 hop from the root
+  attune_wood: 60,
+  attune_water: 60,
+  sharp_tools: 60,
+  measured_cuts: 60,
+  // 2 hops from the root
+  sap_flow: 60,
+  spring_song: 60,
+  rope_making: 60,
+  woodworking: 60,
+  quarrying: 60,
+  jigs: 60,
+  runic_saws: 60,
+  mana_lathe: 60,
+};
+
 // Tournament compresses the village queue by a flat factor (48h / 200d).
 export function researchTimeFactor(mode: GameMode): number {
   return RESEARCH_TOTAL_SECONDS[mode] / RESEARCH_TOTAL_SECONDS.main;
 }
 
 export function researchTime(node: TechNode, mode: GameMode): number {
+  if (mode === 'main') {
+    return VILLAGE_TIME_OVERRIDES[node.id] ?? node.researchTimeSeconds;
+  }
   return node.researchTimeSeconds * researchTimeFactor(mode);
 }

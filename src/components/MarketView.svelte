@@ -20,7 +20,7 @@
     totalCrafters,
     totalGatherers,
   } from '../engine/premium';
-  import { hardReset } from '../engine/save';
+  import { hardReset } from '../engine/hardReset';
   import type { PremiumItem } from '../engine/types';
   import { game } from '../engine/state';
   import Icon from './Icon.svelte';
@@ -108,7 +108,12 @@
   }
 
   async function confirmReset() {
-    if (confirm('Wipe the save and start over?')) await hardReset();
+    if (
+      confirm(
+        'Wipe EVERYTHING and start over? This also removes premium purchases, tournament rewards, and your tournament entry.',
+      )
+    )
+      await hardReset();
   }
 </script>
 

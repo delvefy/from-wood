@@ -4,8 +4,6 @@
   import { setTheme, theme } from '../util/theme';
 </script>
 
-<AccountSection />
-
 <h2>Appearance</h2>
 <div class="options">
   <button class:active={$theme === 'wood'} onclick={() => setTheme('wood')}>☀️ Light</button>
@@ -34,6 +32,8 @@
   contributors, licensed under
   <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a>.
 </p>
+
+<AccountSection />
 
 <style>
   .credits {

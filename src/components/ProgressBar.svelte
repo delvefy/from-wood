@@ -5,7 +5,7 @@
 </script>
 
 <div class="track">
-  <div class="fill" style="width: {pct}%"></div>
+  <div class="fill" style="transform: translateX({pct - 100}%)"></div>
 </div>
 
 <style>
@@ -18,11 +18,17 @@
     overflow: hidden;
   }
 
+  /* Full-width fill slid into view with translateX rather than an animated
+     width: the tick updates every bar once a second, so the 1s transition
+     runs back-to-back forever — transform stays on the compositor while
+     width would relayout + repaint every frame on every visible bar. */
   .fill {
+    width: 100%;
     height: 100%;
     background: var(--grad-primary);
     border-radius: var(--radius-pill);
     box-shadow: 0 0 8px color-mix(in srgb, var(--magic) 60%, transparent);
-    transition: width 1s linear;
+    transition: transform 1s linear;
+    will-change: transform;
   }
 </style>

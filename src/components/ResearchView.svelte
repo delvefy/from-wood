@@ -169,6 +169,28 @@
     }),
   );
 
+  // Cull to the camera viewport: the tree holds ~500 nodes and edges, and
+  // mounting them all means every per-second state update re-diffs the whole
+  // forest. Padded in world units so things slide in before their box enters;
+  // covers the node's half-size plus its glow.
+  const CULL_PAD = 200;
+  const cullHalfW = $derived(vw / 2 / zoom + CULL_PAD);
+  const cullHalfH = $derived(vh / 2 / zoom + CULL_PAD);
+  const visibleNodes = $derived(
+    TECH.filter(
+      (n) => Math.abs(n.x - cam.x) < cullHalfW && Math.abs(n.y - cam.y) < cullHalfH,
+    ),
+  );
+  const visibleEdges = $derived(
+    edges.filter(
+      (e) =>
+        Math.min(e.x1, e.x2) < cam.x + cullHalfW &&
+        Math.max(e.x1, e.x2) > cam.x - cullHalfW &&
+        Math.min(e.y1, e.y2) < cam.y + cullHalfH &&
+        Math.max(e.y1, e.y2) > cam.y - cullHalfH,
+    ),
+  );
+
   type Status = 'owned' | 'active' | 'queued' | 'available' | 'locked';
 
   function status(node: TechNode): Status {
@@ -284,7 +306,7 @@
       style="transform: translate({vw / 2 - cam.x * zoom}px, {vh / 2 - cam.y * zoom}px) scale({zoom})"
     >
       <svg class="edges" aria-hidden="true">
-        {#each edges as e (e.id)}
+        {#each visibleEdges as e (e.id)}
           <line
             x1={e.x1}
             y1={e.y1}
@@ -295,7 +317,7 @@
           />
         {/each}
       </svg>
-      {#each TECH as node (node.id)}
+      {#each visibleNodes as node (node.id)}
         {@const st = status(node)}
         {@const ready = st === 'available' && canAfford($game, nodeCost(node))}
         <!-- A div, not a button: cost chips inside must stay tappable even when
@@ -320,6 +342,22 @@
         >
           <span class="tname">{node.name}</span>
           <span class="tdesc">{node.description}</span>
+          <span class="tcost">
+            {#if st === 'owned'}
+              ✓ Done
+            {:else if st === 'active'}
+              {formatDuration(Math.ceil(nodeTime(node) - $game.researchProgress))}…
+            {:else if st === 'queued'}
+              Queued #{$game.researchQueue.indexOf(node.id) + 1}
+            {:else if ready}
+              ▶ Tap to research · {formatDuration(Math.ceil(nodeTime(node)))}
+            {:else}
+              ⏱ {formatDuration(Math.ceil(nodeTime(node)))}
+            {/if}
+          </span>
+          <!-- Cost chips last, below the tap-to-research line: they carry their
+               own tap targets (material links), so keeping them at the bottom
+               edge makes them harder to hit when tapping the node itself. -->
           {#if st === 'available' || st === 'locked'}
             <span class="tprice">
               {#each Object.entries(nodeCost(node)) as [id, n] (id)}
@@ -342,19 +380,6 @@
               {/each}
             </span>
           {/if}
-          <span class="tcost">
-            {#if st === 'owned'}
-              ✓ Done
-            {:else if st === 'active'}
-              {formatDuration(Math.ceil(nodeTime(node) - $game.researchProgress))}…
-            {:else if st === 'queued'}
-              Queued #{$game.researchQueue.indexOf(node.id) + 1}
-            {:else if ready}
-              ▶ Tap to research · {formatDuration(Math.ceil(nodeTime(node)))}
-            {:else}
-              ⏱ {formatDuration(Math.ceil(nodeTime(node)))}
-            {/if}
-          </span>
           {#if st === 'active'}
             <ProgressBar value={$game.researchProgress} max={nodeTime(node)} />
           {/if}
@@ -607,7 +632,10 @@
     border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
   }
 
-  /* Prereqs met AND affordable: the loudest thing on the canvas. */
+  /* Prereqs met AND affordable: the loudest thing on the canvas. The glow is
+     static and the pulse is a transform, so the animation stays on the
+     compositor — pulsing box-shadow instead repaints every ready node's glow
+     region every frame, which adds up to real heat on mobile GPUs. */
   .node.available.ready {
     border: 2px solid var(--accent);
     background: linear-gradient(
@@ -615,23 +643,24 @@
       color-mix(in srgb, var(--accent) 14%, var(--panel)),
       var(--panel)
     );
+    box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 55%, transparent);
     animation: ready-pulse 1.8s ease-in-out infinite;
+    will-change: transform;
   }
 
   @keyframes ready-pulse {
     0%,
     100% {
-      box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 35%, transparent);
+      transform: translate(-50%, -50%) scale(1);
     }
     50% {
-      box-shadow: 0 0 24px color-mix(in srgb, var(--accent) 80%, transparent);
+      transform: translate(-50%, -50%) scale(1.045);
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
     .node.available.ready {
       animation: none;
-      box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 55%, transparent);
     }
   }
 

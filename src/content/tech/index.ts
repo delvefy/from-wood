@@ -244,14 +244,30 @@ const TOURNAMENT_COST: Record<string, Record<string, number>> = Object.fromEntri
   AUTHORED.map((n) => [n.id, scaledCost(n.cost, targetCostValue('tournament', n.researchTimeSeconds))]),
 );
 
-// Village-only early-game pacing, cost side: the root and its four direct
-// neighbours are 10× cheaper than the cost curve would price them, so a fresh
-// village can start researching within its first few gather cycles. Applied
-// at read time (like the time overrides below) so tournament costs and the
-// rest of the tree keep their curve values.
+// Village-only early-game pacing, cost side: the root and every node within
+// 2 hops of it are 10× cheaper than the cost curve would price them, so a
+// fresh village can start researching within its first few gather cycles.
+// Applied at read time (like the time overrides below) so tournament costs
+// and the rest of the tree keep their curve values.
 const VILLAGE_CHEAP_FACTOR = 10;
 const VILLAGE_COST_OVERRIDES: Record<string, Record<string, number>> = Object.fromEntries(
-  ['basic_tools', 'attune_wood', 'attune_water', 'sharp_tools', 'measured_cuts'].map((id) => [
+  [
+    'basic_tools',
+    // 1 hop from the root
+    'attune_wood',
+    'attune_water',
+    'sharp_tools',
+    'measured_cuts',
+    // 2 hops from the root
+    'sap_flow',
+    'spring_song',
+    'rope_making',
+    'woodworking',
+    'quarrying',
+    'jigs',
+    'runic_saws',
+    'mana_lathe',
+  ].map((id) => [
     id,
     Object.fromEntries(
       Object.entries(TECH_BY_ID[id].cost).map(([res, n]) => [

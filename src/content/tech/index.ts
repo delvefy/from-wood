@@ -48,15 +48,14 @@ export const RESEARCH_TOTAL_SECONDS: Record<GameMode, number> = {
   tournament: 24 * 3_600, // 1 day
 };
 
-// Tournament pacing target: a player with 100 gatherers and 10 crafters
-// finishes the whole tree in ~48h — the 24h research queue plus ~24h of
-// material stalls. Tuned with `npm run simulate`
-// (scripts/simulate-tournament.ts); re-run it after changing curves,
-// recipes or worker math.
-const COST_CURVE: Record<GameMode, { rootValue: number; endValue: number }> = {
-  main: { rootValue: 20, endValue: 100_000 }, // 10 wood + 10 water at the root
-  tournament: { rootValue: 2, endValue: 900_000 }, // 1 wood + 1 water at the root
-};
+// The cost curve is defined at TOURNAMENT scale and tuned with
+// `npm run simulate` (scripts/simulate-tournament.ts) so a player with
+// 100 gatherers and 10 crafters finishes the whole tree in ~48h — the 24h
+// research queue plus ~24h of material stalls. Re-run the sim after changing
+// curves, recipes or worker math. Village costs are exactly
+// VILLAGE_COST_FACTOR × the tournament cost, entry for entry.
+const COST_CURVE = { rootValue: 2, endValue: 900_000 }; // 1 wood + 1 water at the root
+const VILLAGE_COST_FACTOR = 100;
 
 const AUTHORED_TIME = { root: 30, end: 86_400 };
 
@@ -68,8 +67,8 @@ const price = (id: string) => RESOURCE_BY_ID[id]?.baseSellPrice ?? 0;
 const costValue = (cost: Record<string, number>): number =>
   Object.entries(cost).reduce((sum, [id, n]) => sum + n * price(id), 0);
 
-function targetCostValue(mode: GameMode, authoredSeconds: number): number {
-  const { rootValue, endValue } = COST_CURVE[mode];
+function targetCostValue(authoredSeconds: number): number {
+  const { rootValue, endValue } = COST_CURVE;
   const exp = Math.log(endValue / rootValue) / Math.log(AUTHORED_TIME.end / AUTHORED_TIME.root);
   return rootValue * (authoredSeconds / AUTHORED_TIME.root) ** exp;
 }
@@ -185,19 +184,22 @@ const AUTHORED: TechNode[] = [...CORE, ...majorNodes, ...pathNodes];
 const VILLAGE_TIME_SCALE =
   RESEARCH_TOTAL_SECONDS.main / AUTHORED.reduce((sum, n) => sum + n.researchTimeSeconds, 0);
 
-// Baked at village pace/prices; tournament reads go through the helpers below.
+const TOURNAMENT_COST: Record<string, Record<string, number>> = Object.fromEntries(
+  AUTHORED.map((n) => [n.id, scaledCost(n.cost, targetCostValue(n.researchTimeSeconds))]),
+);
+
+// Baked at village pace/prices — village cost is the tournament cost ×100,
+// entry for entry. Tournament reads go through the helpers below.
 export const TECH: TechNode[] = AUTHORED.map((node) => ({
   ...node,
-  cost: scaledCost(node.cost, targetCostValue('main', node.researchTimeSeconds)),
+  cost: Object.fromEntries(
+    Object.entries(TOURNAMENT_COST[node.id]).map(([id, n]) => [id, n * VILLAGE_COST_FACTOR]),
+  ),
   researchTimeSeconds: Math.round(node.researchTimeSeconds * VILLAGE_TIME_SCALE),
 }));
 
 export const TECH_BY_ID: Record<string, TechNode> = Object.fromEntries(
   TECH.map((t) => [t.id, t]),
-);
-
-const TOURNAMENT_COST: Record<string, Record<string, number>> = Object.fromEntries(
-  AUTHORED.map((n) => [n.id, scaledCost(n.cost, targetCostValue('tournament', n.researchTimeSeconds))]),
 );
 
 // The first five nodes — the root and the four branch openers one hop out —
@@ -211,11 +213,11 @@ const FIRST_FIVE = [
   'mana_lathe', // south spine opener
 ];
 
-// Village-only early-game pacing, cost side: the first five are 10× cheaper
-// than the cost curve would price them. Applied at read time (like the time
-// overrides below) so tournament costs and the rest of the tree keep their
-// curve values.
-const VILLAGE_CHEAP_FACTOR = 10;
+// Village-only early-game pacing, cost side: the first five are 100× cheaper
+// than the ×100 village pricing would make them (i.e. at tournament prices).
+// Applied at read time (like the time overrides below) so the rest of the
+// tree keeps its curve values.
+const VILLAGE_CHEAP_FACTOR = 100;
 const VILLAGE_COST_OVERRIDES: Record<string, Record<string, number>> = Object.fromEntries(
   FIRST_FIVE.map((id) => [
     id,

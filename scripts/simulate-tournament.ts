@@ -22,8 +22,8 @@ import type { GameMode } from '../src/engine/mode';
 const GATHERERS = Number(process.argv[2] ?? 100);
 const CRAFTERS = Number(process.argv[3] ?? 10);
 const MODE = (process.argv[4] ?? 'tournament') as GameMode;
-const DT = 10; // seconds per step; replan every step
-const MAX_SIM_SECONDS = 60 * 86_400;
+const DT = MODE === 'main' ? 30 : 10; // seconds per step; replan every step
+const MAX_SIM_SECONDS = 400 * 86_400;
 
 // ---- State ----------------------------------------------------------------------
 const stock: Record<string, number> = {};
@@ -261,7 +261,7 @@ while (researched.size < TECH.length && t < MAX_SIM_SECONDS) {
 
   t += DT;
   const hour = Math.floor(t / 3600);
-  if (hour !== lastLogHour && hour % 4 === 0) {
+  if (hour !== lastLogHour && hour % (MODE === 'main' ? 96 : 4) === 0) {
     lastLogHour = hour;
     console.log(
       `t=${(t / 3600).toFixed(0).padStart(3)}h researched=${String(researched.size).padStart(3)}/${TECH.length}` +

@@ -24,10 +24,15 @@ checkUnique('tech', TECH.map((t) => t.id));
 // ---- Recipes --------------------------------------------------------------------
 for (const recipe of RECIPES) {
   const inputIds = Object.keys(recipe.inputs);
-  if (inputIds.length > 3) {
-    errors.push(`recipe ${recipe.id} has ${inputIds.length} input types (max 3)`);
+  // Design rule: exactly 2 input types everywhere; only materials (simple
+  // refinements like planks) may run on a single input.
+  if (recipe.category === 'materials') {
+    if (inputIds.length < 1 || inputIds.length > 2) {
+      errors.push(`recipe ${recipe.id} has ${inputIds.length} input types (materials need 1-2)`);
+    }
+  } else if (inputIds.length !== 2) {
+    errors.push(`recipe ${recipe.id} has ${inputIds.length} input types (exactly 2 required)`);
   }
-  if (inputIds.length === 0) errors.push(`recipe ${recipe.id} has no inputs`);
   for (const [id, n] of Object.entries(recipe.inputs)) {
     if (!RESOURCE_BY_ID[id]) errors.push(`recipe ${recipe.id} input references unknown resource: ${id}`);
     if (n <= 0) errors.push(`recipe ${recipe.id} input ${id} has non-positive amount`);
@@ -48,6 +53,10 @@ for (const node of TECH) {
   }
   for (const [id] of Object.entries(node.cost)) {
     if (!RESOURCE_BY_ID[id]) errors.push(`tech ${node.id} cost references unknown resource: ${id}`);
+  }
+  // Same rule as recipes: every node charges exactly 2 resources.
+  if (Object.keys(node.cost).length !== 2) {
+    errors.push(`tech ${node.id} cost has ${Object.keys(node.cost).length} resources (exactly 2 required)`);
   }
   for (const effect of node.effects) {
     if (effect.kind === 'unlockRecipe' && !recipeIds.has(effect.id)) {

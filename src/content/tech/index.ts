@@ -1,29 +1,28 @@
 import type { GameMode } from '../../engine/mode';
-import type { TechEffect, TechNode } from '../../engine/types';
+import type { TechBranch, TechEffect, TechNode } from '../../engine/types';
 import { RESOURCE_BY_ID } from '../resources';
-import { CLUSTERS } from './clusters';
 import { CORE } from './core';
 import { MAJORS } from './majors';
 import { PATHS } from './paths';
-import type { SmallEffect } from './specs';
 
-export type { ClusterSpec, MajorSpec, PathSpec, SmallEffect } from './specs';
+export type { MajorSpec, PathSpec } from './specs';
 
-// PoE-style skill tree on an infinite canvas. Root sits at (0, 0); the Magic
-// branch grows LEFT (x < 0), the Tech branch grows RIGHT (x > 0), and Magitech
-// hybrids run along the vertical spine (x = 0) — each spine node requires one
-// node from each side.
+// A 100-node skill tree on an infinite canvas: the root at (0, 0) plus
+// 30 Magic nodes growing LEFT (x < 0), 30 Tech nodes growing RIGHT (x > 0),
+// and two Magitech spines of 20 nodes each running NORTH (y < 0, root
+// included) and SOUTH (y > 0) — spine majors require one major from each
+// side.
 //
-// The tree is assembled from four layers:
-// - CORE: the hand-placed inner nodes around the root (stable ids/positions).
-// - MAJORS: era unlock nodes (~600px apart) that open recipe/resource batches.
-// - PATHS: chains of small +1% nodes generated along each major->major edge;
-//   the target major's requirement is rewired through the chain.
-// - CLUSTERS: fans of small +1% nodes generated around each major.
+// The tree is assembled from three layers:
+// - CORE: the hand-placed root.
+// - MAJORS: 48 unlock/keystone nodes that open recipe/resource batches.
+// - PATHS: chains of 51 small +1% nodes generated along each major->major
+//   edge; the target major's requirement is rewired through the chain.
 //
 // Design rules:
-// - No speed effects anywhere. Only efficiency: small additive percents
-//   (+1% per small node, +2% on majors) to gather yield or craft output.
+// - No speed effects anywhere. Only efficiency, always to BOTH buckets:
+//   every magic/tech node gives +1% gather and +1% craft output, every
+//   magitech node +2% of each (majors and smalls alike).
 // - `major` nodes unlock content (resources/recipes) and render larger.
 // - Coordinates are world px; keep ~150px between connected nodes.
 
@@ -45,16 +44,25 @@ const slug = (name: string) =>
 //   curve of its authored time, from rootValue to endValue. node.cost holds
 //   the village cost; tournament costs live in a side table read via techCost().
 export const RESEARCH_TOTAL_SECONDS: Record<GameMode, number> = {
-  main: 200 * 86_400, // 200 days of continuous research
-  tournament: 48 * 3_600, // 48 hours
+  main: 100 * 86_400, // 100 days of continuous research
+  tournament: 24 * 3_600, // 1 day
 };
 
+// Tournament pacing target: a player with 100 gatherers and 10 crafters
+// finishes the whole tree in ~48h — the 24h research queue plus ~24h of
+// material stalls. Tuned with `npm run simulate`
+// (scripts/simulate-tournament.ts); re-run it after changing curves,
+// recipes or worker math.
 const COST_CURVE: Record<GameMode, { rootValue: number; endValue: number }> = {
   main: { rootValue: 20, endValue: 100_000 }, // 10 wood + 10 water at the root
-  tournament: { rootValue: 2, endValue: 1_000 }, // 1 wood + 1 water at the root
+  tournament: { rootValue: 2, endValue: 900_000 }, // 1 wood + 1 water at the root
 };
 
 const AUTHORED_TIME = { root: 30, end: 86_400 };
+
+// Later nodes in a path chain run this much longer than the one before —
+// which also grows their cost, since cost follows authored time.
+const PATH_STEP_GROWTH = 1.3;
 
 const price = (id: string) => RESOURCE_BY_ID[id]?.baseSellPrice ?? 0;
 const costValue = (cost: Record<string, number>): number =>
@@ -73,48 +81,42 @@ const niceAmount = (n: number): number => {
   return Math.round(n / unit) * unit;
 };
 
-// Rescales a cost mix so its value lands on `target`. Entries that round to
-// zero drop out (a small budget can't afford one locomotive); the cheapest
-// ingredient then absorbs whatever gap rounding and drops left behind.
+// Rescales a cost mix so its value lands on `target`. Every ingredient stays
+// in the cost (design rule: exactly 2 per node) at a minimum of 1, even when
+// a small budget can't really afford one locomotive; the cheapest ingredient
+// absorbs whatever gap rounding leaves behind.
 function scaledCost(mix: Record<string, number>, target: number): Record<string, number> {
   const value = costValue(mix);
   if (value <= 0) return { ...mix };
   const scale = target / value;
   const out: Record<string, number> = {};
   for (const [id, n] of Object.entries(mix)) {
-    const amount = niceAmount(n * scale);
-    if (amount > 0) out[id] = amount;
+    out[id] = Math.max(1, niceAmount(n * scale));
   }
   const cheapest = Object.keys(mix).reduce((a, b) => (price(a) <= price(b) ? a : b));
   const gap = target - costValue(out);
-  if (Math.abs(gap) >= price(cheapest)) {
-    out[cheapest] = Math.max(1, (out[cheapest] ?? 0) + Math.round(gap / price(cheapest)));
+  if (gap >= price(cheapest)) {
+    out[cheapest] = Math.max(1, out[cheapest] + Math.round(gap / price(cheapest)));
   }
-  if (Object.keys(out).length === 0) out[cheapest] = 1;
   return out;
 }
 
-function smallMeta(eff: SmallEffect): { description: string; effects: TechEffect[] } {
-  if (eff === 'craft') {
-    return { description: 'Craft output +1%', effects: [{ kind: 'craftEfficiency', percent: 1 }] };
-  }
-  if (eff === 'both') {
-    return {
-      description: 'Gather +1%, craft output +1%',
-      effects: [
-        { kind: 'gatherEfficiency', resource: 'all', percent: 1 },
-        { kind: 'craftEfficiency', percent: 1 },
-      ],
-    };
-  }
-  const resource = eff.slice('gather:'.length);
+// Efficiency is uniform and branch-keyed: magic/tech nodes give +1% to
+// gathering AND crafting, magitech nodes +2% to both.
+function branchBonus(branch: TechBranch): { percent: number; effects: TechEffect[] } {
+  const percent = branch === 'magitech' ? 2 : 1;
   return {
-    description:
-      resource === 'all'
-        ? 'Gather efficiency +1%'
-        : `${RESOURCE_BY_ID[resource]?.name ?? resource} yield +1%`,
-    effects: [{ kind: 'gatherEfficiency', resource, percent: 1 }],
+    percent,
+    effects: [
+      { kind: 'gatherEfficiency', resource: 'all', percent },
+      { kind: 'craftEfficiency', percent },
+    ],
   };
+}
+
+function smallMeta(branch: TechBranch): { description: string; effects: TechEffect[] } {
+  const { percent, effects } = branchBonus(branch);
+  return { description: `Gather +${percent}%, craft output +${percent}%`, effects };
 }
 
 // ---- Assembly -------------------------------------------------------------------
@@ -145,9 +147,9 @@ for (const p of PATHS) {
     pathNodes.push({
       id,
       name,
-      ...smallMeta(p.eff),
+      ...smallMeta(p.branch),
       cost: p.cost,
-      researchTimeSeconds: p.time,
+      researchTimeSeconds: Math.round(p.time * PATH_STEP_GROWTH ** i),
       requires: [prev],
       branch: p.branch,
       x: Math.round(a.x + dx * t + px * wiggle),
@@ -158,8 +160,8 @@ for (const p of PATHS) {
   (rewire[p.to] ??= {})[p.from] = prev;
 }
 
-// Majors: batch unlocks plus the standard major bonus — tech majors boost
-// crafting, magic majors boost gathering, spine majors give +1% of each.
+// Majors: batch unlocks plus the same branch bonus every node carries
+// (+1% gather & craft, +2% each on the spine).
 const majorNodes: TechNode[] = MAJORS.map((m) => ({
   id: m.id,
   name: m.name,
@@ -170,14 +172,7 @@ const majorNodes: TechNode[] = MAJORS.map((m) => ({
   effects: [
     ...(m.resources ?? []).map((id) => ({ kind: 'unlockResource', id }) as const),
     ...m.recipes.map((id) => ({ kind: 'unlockRecipe', id }) as const),
-    ...(m.branch === 'tech'
-      ? [{ kind: 'craftEfficiency', percent: 2 } as const]
-      : m.branch === 'magic'
-        ? [{ kind: 'gatherEfficiency', resource: 'all', percent: 2 } as const]
-        : [
-            { kind: 'gatherEfficiency', resource: 'all', percent: 1 } as const,
-            { kind: 'craftEfficiency', percent: 1 } as const,
-          ]),
+    ...branchBonus(m.branch).effects,
   ],
   branch: m.branch,
   x: m.x,
@@ -185,46 +180,7 @@ const majorNodes: TechNode[] = MAJORS.map((m) => ({
   major: true,
 }));
 
-// Clusters: evenly spaced spokes across the fan; depth-2 fans chain an outer
-// node behind each inner one.
-const clusterNodes: TechNode[] = CLUSTERS.flatMap((c) => {
-  const a = pos[c.anchor];
-  if (!a) throw new Error(`tech cluster on ${c.anchor}: unknown anchor`);
-  const inner = c.radius ?? 175;
-  const spokes: string[][] = [];
-  if ((c.depth ?? 1) === 2) {
-    for (let i = 0; i < c.names.length; i += 2) spokes.push(c.names.slice(i, i + 2));
-  } else {
-    for (const name of c.names) spokes.push([name]);
-  }
-  return spokes.flatMap((spoke, s) => {
-    const deg =
-      spokes.length === 1
-        ? c.angle
-        : c.angle - c.spread / 2 + (c.spread * s) / (spokes.length - 1);
-    const rad = (deg * Math.PI) / 180;
-    let prev = c.anchor;
-    return spoke.map((name, d) => {
-      const id = slug(name);
-      const r = inner + d * 150;
-      const node: TechNode = {
-        id,
-        name,
-        ...smallMeta(c.eff),
-        cost: c.cost,
-        researchTimeSeconds: c.time,
-        requires: [prev],
-        branch: c.branch,
-        x: Math.round(a.x + Math.cos(rad) * r),
-        y: Math.round(a.y + Math.sin(rad) * r),
-      };
-      prev = id;
-      return node;
-    });
-  });
-});
-
-const AUTHORED: TechNode[] = [...CORE, ...majorNodes, ...pathNodes, ...clusterNodes];
+const AUTHORED: TechNode[] = [...CORE, ...majorNodes, ...pathNodes];
 
 const VILLAGE_TIME_SCALE =
   RESEARCH_TOTAL_SECONDS.main / AUTHORED.reduce((sum, n) => sum + n.researchTimeSeconds, 0);
@@ -244,30 +200,24 @@ const TOURNAMENT_COST: Record<string, Record<string, number>> = Object.fromEntri
   AUTHORED.map((n) => [n.id, scaledCost(n.cost, targetCostValue('tournament', n.researchTimeSeconds))]),
 );
 
-// Village-only early-game pacing, cost side: the root and every node within
-// 2 hops of it are 10× cheaper than the cost curve would price them, so a
-// fresh village can start researching within its first few gather cycles.
-// Applied at read time (like the time overrides below) so tournament costs
-// and the rest of the tree keep their curve values.
+// The first five nodes — the root and the four branch openers one hop out —
+// are cheap and fast so a fresh village gets moving within its first few
+// gather cycles; the ramp starts one node later.
+const FIRST_FIVE = [
+  'basic_tools',
+  'sharp_tools', // tech opener
+  'wood_attunement', // magic opener
+  'runic_saws', // north spine opener
+  'mana_lathe', // south spine opener
+];
+
+// Village-only early-game pacing, cost side: the first five are 10× cheaper
+// than the cost curve would price them. Applied at read time (like the time
+// overrides below) so tournament costs and the rest of the tree keep their
+// curve values.
 const VILLAGE_CHEAP_FACTOR = 10;
 const VILLAGE_COST_OVERRIDES: Record<string, Record<string, number>> = Object.fromEntries(
-  [
-    'basic_tools',
-    // 1 hop from the root
-    'attune_wood',
-    'attune_water',
-    'sharp_tools',
-    'measured_cuts',
-    // 2 hops from the root
-    'sap_flow',
-    'spring_song',
-    'rope_making',
-    'woodworking',
-    'quarrying',
-    'jigs',
-    'runic_saws',
-    'mana_lathe',
-  ].map((id) => [
+  FIRST_FIVE.map((id) => [
     id,
     Object.fromEntries(
       Object.entries(TECH_BY_ID[id].cost).map(([res, n]) => [
@@ -283,29 +233,19 @@ export function techCost(node: TechNode, mode: GameMode): Record<string, number>
   return VILLAGE_COST_OVERRIDES[node.id] ?? node.cost;
 }
 
-// Village-only early-game pacing: the root and every node within 2 hops of it
-// research fast so a fresh village gets moving, regardless of what the
-// 200-day normalization would give them. Applied at read time so the rest of
-// the tree (and all tournament times) keep their normalized values.
+// Village-only early-game pacing, time side: the first five research in
+// seconds regardless of what the 100-day normalization would give them.
+// Applied at read time so the rest of the tree (and all tournament times)
+// keep their normalized values.
 const VILLAGE_TIME_OVERRIDES: Record<string, number> = {
   basic_tools: 30,
-  // 1 hop from the root
-  attune_wood: 60,
-  attune_water: 60,
-  sharp_tools: 60,
-  measured_cuts: 60,
-  // 2 hops from the root
-  sap_flow: 60,
-  spring_song: 60,
-  rope_making: 60,
-  woodworking: 60,
-  quarrying: 60,
-  jigs: 60,
-  runic_saws: 60,
-  mana_lathe: 60,
+  sharp_tools: 45,
+  wood_attunement: 45,
+  runic_saws: 45,
+  mana_lathe: 45,
 };
 
-// Tournament compresses the village queue by a flat factor (48h / 200d).
+// Tournament compresses the village queue by a flat factor (1 day / 100 days).
 export function researchTimeFactor(mode: GameMode): number {
   return RESEARCH_TOTAL_SECONDS[mode] / RESEARCH_TOTAL_SECONDS.main;
 }

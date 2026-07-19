@@ -3,7 +3,7 @@ import { RESOURCES } from '../content/resources';
 import { researchTime, TECH_BY_ID } from '../content/tech';
 import { get } from 'svelte/store';
 import { getAccount } from './account';
-import { gameMode, modeTimeFactor } from './mode';
+import { gameMode } from './mode';
 import { computeMultipliers, harvestMultiplier } from './multipliers';
 import { craftTimeFactor, gatherTimeFactor } from './premium';
 import type { GameState, Recipe, ResourceId, TechNode } from './types';
@@ -69,13 +69,12 @@ export function unlockOutputs(s: GameState, recipe: Recipe): void {
 export function tick(s: GameState, seconds: number): GameState {
   // Premium managers shorten cycle durations; hoisted since they apply to all.
   // Account-level, so they hold in the village and tournament slots alike.
-  // Tournament runs are a sprint: base cycles run TOURNAMENT_SPEED× faster
-  // and research durations are compressed (see researchTime).
+  // Worker pace is mode-independent; only research durations are compressed
+  // in tournaments (see researchTime).
   const acct = getAccount();
   const mode = get(gameMode);
-  const modeFactor = modeTimeFactor(mode);
-  const gatherFactor = gatherTimeFactor(acct) * modeFactor;
-  const craftFactor = craftTimeFactor(acct) * modeFactor;
+  const gatherFactor = gatherTimeFactor(acct);
+  const craftFactor = craftTimeFactor(acct);
 
   // Gathering: each resource with assigned workers runs a shared cycle bar;
   // every completed cycle yields (workers × amount × multipliers).

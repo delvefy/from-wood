@@ -30,8 +30,9 @@ export interface Recipe {
   name: string;
   icon: string;
   category: RecipeCategory;
-  // Design rule: at most 3 distinct input types per recipe. Depth and
-  // quantities carry the cost curve, never more ingredient slots.
+  // Design rule: exactly 2 distinct input types per recipe (materials may
+  // use 1 — simple refinements). Depth and quantities carry the cost curve,
+  // never more ingredient slots.
   inputs: Record<ResourceId, number>;
   outputs: Record<ResourceId, number>;
   craftTimeSeconds: number; // craft job length (before speed multipliers)

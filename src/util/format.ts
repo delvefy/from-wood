@@ -5,6 +5,9 @@ export function formatNumber(n: number): string {
   if (abs >= 1e6) return scaled(n / 1e6) + 'M';
   if (abs >= 1e3) return scaled(n / 1e3) + 'k';
   if (Number.isInteger(n)) return String(n);
+  // Stocks accrue continuously (0.05 wood/s), so small fractions carry real
+  // signal: two decimals below 100, one up to 1k, suffix-scaled above.
+  if (abs < 100) return (Math.floor(n * 100) / 100).toFixed(2);
   return (Math.floor(n * 10) / 10).toFixed(1);
 }
 

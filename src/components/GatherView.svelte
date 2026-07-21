@@ -1,6 +1,5 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
-  import ProgressBar from './ProgressBar.svelte';
   import SearchBox from './SearchBox.svelte';
   import { RESOURCES } from '../content/resources';
   import { techTree } from '../content/tech';
@@ -82,17 +81,11 @@
         <div class="crew">
           <Icon id={GATHERER.icon} tint={false} /> <strong>{assigned}</strong>
           {#if assigned > 0}
-            <span class="muted">· +{formatNumber(yield_)} / {formatNumber(cycle)}s</span>
+            <span class="muted">· +{formatNumber(yield_ / cycle)}/s</span>
           {:else}
             <span class="muted">· hold ❯ to assign</span>
           {/if}
         </div>
-        {#if assigned > 0}
-          <div class="progress">
-            <ProgressBar value={$game.gatherProgress[r.id] ?? 0} max={cycle} />
-            <span class="left muted">{Math.ceil(cycle - ($game.gatherProgress[r.id] ?? 0))}s</span>
-          </div>
-        {/if}
       </div>
       <button
         class="chev add"
@@ -289,25 +282,6 @@
   .crew strong {
     font-size: 0.95rem;
     font-variant-numeric: tabular-nums;
-  }
-
-  .progress {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    margin-top: 2px;
-  }
-
-  .progress :global(.track) {
-    flex: 1;
-  }
-
-  .left {
-    font-size: 0.75rem;
-    font-variant-numeric: tabular-nums;
-    min-width: 3.5ch;
-    text-align: right;
   }
 
   .section {

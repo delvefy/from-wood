@@ -198,15 +198,29 @@
     ),
   );
 
+  // Level of detail: below this zoom a 108px card is under ~40px on screen —
+  // its text is unreadable and culling no longer helps (the cull box grows as
+  // 1/zoom, so far out ALL 500 cards were live DOM, and every zoom step
+  // re-rasterized ~5000 styled elements). Render status-colored dots in the
+  // SVG instead; full cards return once you zoom back in.
+  const LOD_ZOOM = 0.35;
+  const lod = $derived(zoom < LOD_ZOOM);
+  // Constant ~7px screen radius, capped in world units so dots never swallow
+  // the ~150px gap between neighbors just below the LOD threshold.
+  const dotR = $derived(Math.min(44, 7 / zoom));
+
   type Status = 'owned' | 'active' | 'queued' | 'available' | 'locked';
 
+  // O(1) membership for status(): it runs per node per render, and array
+  // .includes over 500 unlocked techs made every game tick re-render O(n²).
+  const unlockedSet = $derived(new Set($game.unlockedTech));
+  const queuedSet = $derived(new Set($game.researchQueue));
+
   function status(node: TechNode): Status {
-    if ($game.unlockedTech.includes(node.id)) return 'owned';
+    if (unlockedSet.has(node.id)) return 'owned';
     if ($game.researchQueue[0] === node.id) return 'active';
-    if ($game.researchQueue.includes(node.id)) return 'queued';
-    const satisfied = node.requires.every(
-      (r) => $game.unlockedTech.includes(r) || $game.researchQueue.includes(r),
-    );
+    if (queuedSet.has(node.id)) return 'queued';
+    const satisfied = node.requires.every((r) => unlockedSet.has(r) || queuedSet.has(r));
     return satisfied ? 'available' : 'locked';
   }
 
@@ -319,11 +333,23 @@
             x2={e.x2}
             y2={e.y2}
             class="edge {e.branch}"
-            class:done={$game.unlockedTech.includes(e.parentId)}
+            class:done={unlockedSet.has(e.parentId)}
           />
         {/each}
+        {#if lod}
+          {#each visibleNodes as node (node.id)}
+            {@const st = status(node)}
+            <circle
+              cx={node.x}
+              cy={node.y}
+              r={node.major ? dotR * 1.6 : dotR}
+              class="dot {node.branch} {st}"
+              class:ready={st === 'available' && canAfford($game, nodeCost(node))}
+            />
+          {/each}
+        {/if}
       </svg>
-      {#each visibleNodes as node (node.id)}
+      {#each lod ? [] : visibleNodes as node (node.id)}
         {@const st = status(node)}
         {@const ready = st === 'available' && canAfford($game, nodeCost(node))}
         <!-- A div, not a button: cost chips inside must stay tappable even when
@@ -534,6 +560,8 @@
     left: 0;
     top: 0;
     transform-origin: 0 0;
+    /* keep the pan/zoom transform on its own compositor layer */
+    will-change: transform;
   }
 
   .edges {
@@ -566,6 +594,37 @@
 
   .edge.done.magitech {
     stroke: var(--magitech);
+  }
+
+  /* Zoomed-out LOD dots: status first (what can I do?), branch color for
+     owned nodes so cleared regions read as tinted territory on the map. */
+  .dot {
+    fill: color-mix(in srgb, var(--border) 65%, var(--panel));
+  }
+
+  .dot.available {
+    fill: color-mix(in srgb, var(--accent) 45%, var(--border));
+  }
+
+  .dot.available.ready {
+    fill: var(--accent);
+  }
+
+  .dot.active,
+  .dot.queued {
+    fill: var(--science);
+  }
+
+  .dot.owned.magic {
+    fill: var(--magic);
+  }
+
+  .dot.owned.tech {
+    fill: var(--tech);
+  }
+
+  .dot.owned.magitech {
+    fill: var(--magitech);
   }
 
   .node {

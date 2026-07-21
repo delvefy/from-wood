@@ -1,6 +1,5 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
-  import ProgressBar from './ProgressBar.svelte';
   import SearchBox from './SearchBox.svelte';
   import { CATEGORY_ORDER, RECIPES } from '../content/recipes';
   import { RESOURCE_BY_ID } from '../content/resources';
@@ -118,6 +117,7 @@
                 <div class="title">
                   <span class="icon"><Icon id={outputId(recipe)} /></span>
                   <span class="name">{recipe.name}</span>
+                  <span class="amount">{formatNumber($game.resources[outputId(recipe)] ?? 0)}</span>
                 </div>
                 <!-- Icon-only chips keep the recipe to one row; the material
                      name lives in the tooltip and (with links on) the tap. -->
@@ -160,12 +160,9 @@
                   {#if assigned > 0}
                     <span class="muted rate">
                       {#each Object.entries(recipe.outputs) as [id, n] (id)}
-                        +<Icon {id} />{formatNumber(assigned * n * $game.multipliers.craftOutput)}
+                        +<Icon {id} />{formatNumber((assigned * n * $game.multipliers.craftOutput) / duration)}/s
                       {/each}
-                      / {formatNumber(duration)}s
                     </span>
-                    <ProgressBar value={$game.craftProgress[recipe.id] ?? 0} max={duration} />
-                    <span class="left muted">{Math.ceil(duration - ($game.craftProgress[recipe.id] ?? 0))}s</span>
                   {:else}
                     <span class="muted">· hold ❯ to assign · ⏱ {formatNumber(duration)}s</span>
                   {/if}
@@ -378,6 +375,13 @@
     font-size: 0.95rem;
   }
 
+  .amount {
+    font-size: 0.95rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+  }
+
   .io {
     justify-content: center;
   }
@@ -399,11 +403,6 @@
 
   .rate {
     white-space: nowrap;
-  }
-
-  .crew :global(.track) {
-    flex: 1;
-    min-width: 40px;
   }
 
   .head {
@@ -467,13 +466,6 @@
 
   .raw {
     font-size: 0.75rem;
-  }
-
-  .left {
-    font-size: 0.75rem;
-    font-variant-numeric: tabular-nums;
-    min-width: 3.5ch;
-    text-align: right;
   }
 
   .card.dim {

@@ -28,10 +28,11 @@ export function scaleAmounts(
 }
 
 // How many runs of a recipe the current stock can pay for (Infinity if free).
+// Fractional: crafting is a continuous flow, so 0.4 of a run is spendable.
 export function affordableRuns(s: GameState, inputs: Record<ResourceId, number>): number {
   let runs = Infinity;
   for (const [id, n] of Object.entries(inputs)) {
-    runs = Math.min(runs, Math.floor((s.resources[id] ?? 0) / n));
+    runs = Math.min(runs, (s.resources[id] ?? 0) / n);
   }
   return runs;
 }
@@ -63,9 +64,13 @@ export function unlockOutputs(s: GameState, recipe: Recipe): void {
   for (const id of Object.keys(recipe.outputs)) pushUnique(s.unlockedResources, id);
 }
 
-// Advances all timed work by `seconds`: gather cycles, the research queue, and
-// running craft jobs. Deterministic and cheap; also used to fast-forward
-// offline progress.
+// Offline catch-up granularity for the craft flow. Online ticks (1s) always
+// fit in one sub-step; an 8h catch-up costs ~480 iterations.
+const CRAFT_SUBSTEP_SECONDS = 60;
+
+// Advances all timed work by `seconds`: gather flows, the research queue, and
+// craft flows. Deterministic and cheap; also used to fast-forward offline
+// progress.
 export function tick(s: GameState, seconds: number): GameState {
   // Premium managers shorten cycle durations; hoisted since they apply to all.
   // Account-level, so they hold in the village and tournament slots alike.
@@ -76,23 +81,18 @@ export function tick(s: GameState, seconds: number): GameState {
   const gatherFactor = gatherTimeFactor(acct);
   const craftFactor = craftTimeFactor(acct);
 
-  // Gathering: each resource with assigned workers runs a shared cycle bar;
-  // every completed cycle yields (workers × amount × multipliers).
+  // Gathering is a continuous flow: each worker yields
+  // harvestAmount / extractTime per second, scaled by multipliers. No cycle
+  // state — a tick of any length accrues exactly rate × seconds.
   for (const def of RESOURCES) {
     const assigned = s.gatherAssignment[def.id] ?? 0;
     if (assigned <= 0 || def.harvestAmount <= 0 || !s.unlockedResources.includes(def.id)) {
-      if (s.gatherProgress[def.id]) s.gatherProgress[def.id] = 0;
       continue;
     }
     const cycle = def.extractTimeSeconds * gatherFactor;
-    const progress = (s.gatherProgress[def.id] ?? 0) + seconds;
-    const cycles = Math.floor(progress / cycle);
-    if (cycles > 0) {
-      s.resources[def.id] =
-        (s.resources[def.id] ?? 0) +
-        cycles * assigned * def.harvestAmount * harvestMultiplier(s.multipliers, def.id);
-    }
-    s.gatherProgress[def.id] = progress % cycle;
+    s.resources[def.id] =
+      (s.resources[def.id] ?? 0) +
+      (seconds / cycle) * assigned * def.harvestAmount * harvestMultiplier(s.multipliers, def.id);
   }
 
   // Research: a single slot works through the queue front-to-back.
@@ -115,28 +115,30 @@ export function tick(s: GameState, seconds: number): GameState {
     completeResearch(s, node);
   }
 
-  // Crafting mirrors gathering: each recipe with assigned crafters runs a
-  // shared cycle bar. Every completed cycle runs up to one craft per crafter,
-  // limited by what the input stock can pay for; inputs are spent and outputs
-  // (scaled by craft efficiency) land at cycle completion.
-  for (const [recipeId, assigned] of Object.entries(s.craftAssignment)) {
-    const recipe = RECIPE_BY_ID[recipeId];
-    if (!recipe || assigned <= 0 || !s.unlockedRecipes.includes(recipeId)) {
-      if (s.craftProgress[recipeId]) s.craftProgress[recipeId] = 0;
-      continue;
-    }
-    const cycle = recipe.craftTimeSeconds * craftFactor;
-    const progress = (s.craftProgress[recipeId] ?? 0) + seconds;
-    // Loop per cycle (not per tick) so offline fast-forward respects the stock
-    // available at each completion. Stock only shrinks within this loop, so a
-    // zero-run cycle means every later cycle is zero too.
-    for (let i = Math.floor(progress / cycle); i > 0; i--) {
-      const runs = Math.min(assigned, affordableRuns(s, recipe.inputs));
-      if (runs <= 0) break;
+  // Crafting is a continuous flow too: each crafter completes
+  // 1 / craftTime runs per second, throttled by what the input stock can pay
+  // for right now (fractional runs — scarcity degrades throughput smoothly
+  // instead of stalling whole cycles). Long offline windows advance in
+  // sub-steps so recipes chained through craftAssignment order keep feeding
+  // each other at close to online fidelity.
+  let craftLeft = seconds;
+  while (craftLeft > 0) {
+    const dt = Math.min(craftLeft, CRAFT_SUBSTEP_SECONDS);
+    craftLeft -= dt;
+    for (const [recipeId, assigned] of Object.entries(s.craftAssignment)) {
+      const recipe = RECIPE_BY_ID[recipeId];
+      if (!recipe || assigned <= 0 || !s.unlockedRecipes.includes(recipeId)) continue;
+      const cycle = recipe.craftTimeSeconds * craftFactor;
+      const runs = Math.min((assigned * dt) / cycle, affordableRuns(s, recipe.inputs));
+      if (runs <= 0) continue;
       spendInputs(s, scaleAmounts(recipe.inputs, runs));
+      // Spending exactly `have / need × need` can leave -1e-15 dust; clamp so
+      // stock never displays (or compares) as negative.
+      for (const id of Object.keys(recipe.inputs)) {
+        if ((s.resources[id] ?? 0) < 0) s.resources[id] = 0;
+      }
       grantOutputs(s, scaleAmounts(recipe.outputs, runs * s.multipliers.craftOutput));
     }
-    s.craftProgress[recipeId] = progress % cycle;
   }
 
   return s;

@@ -86,9 +86,10 @@ export function assignAllWorkers(): void {
 }
 
 // Hired workers = owned minus the free starting slots; cost scales with those.
+// Costs keep their decimals (rounded to cents) — credits are not integers.
 export function nextHireCost(config: WorkerConfig, owned: number): number {
   const hired = Math.max(0, owned - config.startingCount);
-  return Math.ceil(config.hireCost * config.hireCostGrowth ** hired);
+  return Math.round(config.hireCost * config.hireCostGrowth ** hired * 100) / 100;
 }
 
 export function hireWorker(): void {

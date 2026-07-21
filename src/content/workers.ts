@@ -9,19 +9,19 @@ export const GATHERER: WorkerConfig = {
   name: 'Gatherer',
   icon: 'worker_gatherer',
   description: 'Each gatherer fills one gather slot and can be assigned to a resource.',
-  hireCost: 5,
+  hireCost: 1,
   hireCostGrowth: 1.15,
   startingCount: 1,
 };
 
-// Crafters are pegged at ~10 gatherers apiece: growth is the gatherer's
-// growth to the 10th power (1.15^10 ≈ 4), so the Nth crafter always costs
-// about as much as gatherers 10N-9..10N. Soft-caps the crew at ~8-10.
+// Crafters grow at the gatherer's rate to the 10th power (1.15^10 ≈ 4), so
+// each crafter keeps pace with a block of ten gatherers (the Nth crafter ≈
+// 2.5× the cost of gatherers 10N-9..10N). Soft-caps the crew at ~8-10.
 export const CRAFTER: WorkerConfig = {
   name: 'Crafter',
   icon: 'worker_crafter',
   description: 'Each crafter fills one craft slot and can be assigned to a recipe.',
-  hireCost: 100,
+  hireCost: 50,
   hireCostGrowth: 4,
   startingCount: 0,
 };

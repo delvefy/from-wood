@@ -1,7 +1,7 @@
 import type { PathSpec } from './specs';
 
-// The 51 authored small +1% nodes, as chains along major->major edges:
-// 8 tech, 15 magic, 14 spirit spine, 14 matter spine. Names become node
+// The 49 authored small +1% nodes, as chains along major->major edges:
+// 7 tech, 14 magic, 14 spirit spine, 14 matter spine. Names become node
 // ids (slugified), so keep them unique tree-wide. Every small node gives
 // +1% gather and +1% craft, regardless of branch — effects are fixed in
 // index.ts. Costs use resources the player is guaranteed
@@ -11,11 +11,13 @@ import type { PathSpec } from './specs';
 // runs 1.3× the previous, which also ramps its cost via the value curve.
 //
 // The four branch openers — Sharp Tools, Wood Attunement, Runic Saws and
-// Mana Lathe — are, with the root, the five cheap-and-fast starter nodes
-// (overridden at read time in index.ts).
+// Mana Lathe — are, with the root and the two first-unlock majors
+// (woodworking, rope_making), the cheap-and-fast starter nodes (overridden
+// at read time in index.ts). The tech and magic openers are single-node
+// chains so the first crafting/resource unlocks sit right behind them.
 export const PATHS: PathSpec[] = [
   // ---- Tech branch (right, 8 smalls) ---------------------------------------------
-  { from: 'basic_tools', to: 'woodworking', branch: 'tech', cost: { wood: 6, water: 3 }, time: 45, names: ['Sharp Tools', 'Measured Cuts'], bow: 60 },
+  { from: 'basic_tools', to: 'woodworking', branch: 'tech', cost: { wood: 6, water: 3 }, time: 45, names: ['Sharp Tools'], bow: 60 },
   { from: 'woodworking', to: 'quarrying', branch: 'tech', cost: { wood: 12, water: 6 }, time: 90, names: ['Jigs & Fixtures'] },
   { from: 'quarrying', to: 'metallurgy', branch: 'tech', cost: { stone: 10, wood: 10 }, time: 150, names: ['Ore Roasting'] },
   { from: 'metallurgy', to: 'ironworking', branch: 'tech', cost: { copper_ingot: 4, stone_brick: 4 }, time: 300, names: ['Bloomery Draft'] },
@@ -24,7 +26,7 @@ export const PATHS: PathSpec[] = [
   { from: 'mechanisms', to: 'fine_machinery', branch: 'tech', cost: { gear: 8, glass: 5 }, time: 4800, names: ['Fine Tooling'] },
 
   // ---- Magic branch (left, 15 smalls) ----------------------------------------------
-  { from: 'basic_tools', to: 'rope_making', branch: 'magic', cost: { water: 5, wood: 3 }, time: 45, names: ['Wood Attunement', 'Water Attunement'], flip: true },
+  { from: 'basic_tools', to: 'rope_making', branch: 'magic', cost: { water: 5, wood: 3 }, time: 45, names: ['Wood Attunement'], bow: -60 },
   { from: 'rope_making', to: 'sapcraft', branch: 'magic', cost: { wood: 16, water: 12 }, time: 300, names: ['Sap Flow'] },
   { from: 'rope_making', to: 'herbalism', branch: 'magic', cost: { water: 20, fiber: 12 }, time: 240, names: ['Verdant Whisper', 'Deep Roots'] },
   { from: 'rope_making', to: 'weaving', branch: 'magic', cost: { fiber: 16, water: 16 }, time: 300, names: ['Spring Song', 'Moon Tides'], bow: -60 },

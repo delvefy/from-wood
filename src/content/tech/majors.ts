@@ -29,7 +29,10 @@ import type { MajorSpec } from './specs';
 // every cost is obtainable before the node that charges it.
 export const MAJORS: MajorSpec[] = [
   // ---- Tech branch (right wedge, 22 majors) --------------------------------------
-  { id: 'woodworking', name: 'Woodworking', description: 'Planks and paper', branch: 'tech', x: 360, y: -430, requires: ['basic_tools'], cost: { wood: 10, water: 4 }, time: 120, recipes: ['planks', 'paper'] },
+  // Woodworking sits close to the root (the magic twin is rope_making): it is
+  // the game's first crafting unlock, kept within the first handful of nodes
+  // so a new player immediately sees what to work toward.
+  { id: 'woodworking', name: 'Woodworking', description: 'Planks and paper', branch: 'tech', x: 210, y: -260, requires: ['basic_tools'], cost: { wood: 10, water: 4 }, time: 60, recipes: ['planks', 'paper'] },
   { id: 'quarrying', name: 'Quarrying', description: 'Stone and stone bricks', branch: 'tech', x: 660, y: -650, requires: ['woodworking'], cost: { wood: 12, water: 6 }, time: 150, resources: ['stone'], recipes: ['stone_brick'] },
   { id: 'metallurgy', name: 'Metallurgy', description: 'Copper + iron ore, copper ingots', branch: 'tech', x: 980, y: -780, requires: ['quarrying'], cost: { stone: 15, wood: 20 }, time: 240, resources: ['copper_ore', 'iron_ore'], recipes: ['copper_ingot'] },
   { id: 'ironworking', name: 'Ironworking', description: 'Coal, iron smelting and basic metal stock', branch: 'tech', x: 1280, y: -900, requires: ['metallurgy'], cost: { copper_ingot: 12, stone_brick: 12 }, time: 600, resources: ['coal'], recipes: ['charcoal', 'iron_ingot', 'nails', 'iron_rod', 'iron_plate', 'copper_wire', 'gear', 'furnace', 'forge_bellows'] },
@@ -53,7 +56,9 @@ export const MAJORS: MajorSpec[] = [
   { id: 'automation', name: 'Automation', description: 'Assemblers and automatons', branch: 'tech', x: 1500, y: -2400, requires: ['electricity'], cost: { circuit: 16, generator: 1 }, time: 43200, recipes: ['assembler', 'automaton_frame', 'automaton'] },
 
   // ---- Magic branch (left wedge, 15 majors) --------------------------------------
-  { id: 'rope_making', name: 'Fiber Binding', description: 'Fiber and rope', branch: 'magic', x: -560, y: -480, requires: ['basic_tools'], cost: { wood: 8, water: 8 }, time: 120, resources: ['fiber'], recipes: ['rope'] },
+  // Fiber Binding mirrors woodworking on the magic side: the first extra
+  // resource (fiber), kept just as close to the root.
+  { id: 'rope_making', name: 'Fiber Binding', description: 'Fiber and rope', branch: 'magic', x: -230, y: -260, requires: ['basic_tools'], cost: { wood: 8, water: 8 }, time: 60, resources: ['fiber'], recipes: ['rope'] },
   { id: 'sapcraft', name: 'Sapcraft', description: 'Resin tapping, glue and barkhide', branch: 'magic', x: -1150, y: -450, requires: ['rope_making'], cost: { wood: 60, fiber: 20 }, time: 600, resources: ['resin'], recipes: ['glue', 'barkhide', 'ritual_candle'] },
   { id: 'herbalism', name: 'Herbalism', description: 'Herbs, extracts and incense', branch: 'magic', x: -1060, y: -1000, requires: ['rope_making'], cost: { water: 40, rope: 8 }, time: 600, resources: ['herbs'], recipes: ['herbal_extract', 'spirit_water', 'incense'] },
   { id: 'weaving', name: 'Weaving', description: 'Cloth and everything sewn from it', branch: 'magic', x: -980, y: -160, requires: ['rope_making'], cost: { fiber: 60, rope: 12 }, time: 900, recipes: ['cloth', 'basket', 'garment', 'satchel', 'bed', 'toolbelt'] },

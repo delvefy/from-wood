@@ -6,13 +6,17 @@ export function formatNumber(n: number): string {
   if (abs >= 1e3) return scaled(n / 1e3) + 'k';
   if (Number.isInteger(n)) return String(n);
   // Stocks accrue continuously (0.05 wood/s), so small fractions carry real
-  // signal: two decimals below 100, one up to 1k, suffix-scaled above.
-  if (abs < 100) return (Math.floor(n * 100) / 100).toFixed(2);
-  return (Math.floor(n * 10) / 10).toFixed(1);
+  // signal: two decimals below 100, one up to 1k, suffix-scaled above. The
+  // epsilon keeps binary float error (1.15 stored as 1.1499…) from flooring
+  // a displayed cent away.
+  if (abs < 100) return (Math.floor(n * 100 + 1e-6) / 100).toFixed(2);
+  return (Math.floor(n * 10 + 1e-6) / 10).toFixed(1);
 }
 
+// Credits carry real decimals (fractional hire costs, price factors), so they
+// format like stocks: two decimals below 100 instead of flooring to integers.
 export function formatCredits(n: number): string {
-  return '$' + formatNumber(Math.floor(n));
+  return '$' + formatNumber(n);
 }
 
 function scaled(v: number): string {

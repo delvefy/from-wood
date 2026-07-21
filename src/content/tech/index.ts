@@ -18,9 +18,9 @@ export type { MajorSpec, PathSpec } from './specs';
 // the apex, where the wonders (end) crown the peak. Spine majors require one
 // major from each side.
 //
-// - TOURNAMENT: the authored 100 nodes as-is — root, 48 majors, 51 small
+// - TOURNAMENT: the authored 98 nodes as-is — root, 48 majors, 49 small
 //   path nodes — on the compact authored canvas.
-// - VILLAGE (main): a 500-node superset. The same 100 authored nodes keep
+// - VILLAGE (main): a 500-node superset. The same 98 authored nodes keep
 //   their ids on a scaled-up canvas, and 400 generated filler smalls
 //   (named from pools in fillers.ts) are spliced into every edge, rewiring
 //   `requires` through the chain.
@@ -28,7 +28,7 @@ export type { MajorSpec, PathSpec } from './specs';
 // The authored layers:
 // - CORE: the hand-placed root.
 // - MAJORS: 48 unlock/keystone nodes that open recipe/resource batches.
-// - PATHS: chains of 51 small +1% nodes generated along each major->major
+// - PATHS: chains of 49 small +1% nodes generated along each major->major
 //   edge; the target major's requirement is rewired through the chain.
 //
 // Design rules:
@@ -335,16 +335,21 @@ edges.forEach((edge, idx) => {
   child.requires = child.requires.map((r) => (r === edge.from ? prev : r));
 });
 
-// Village-only early-game pacing: the root and the four branch openers one
-// hop out research in seconds regardless of the 100-day normalization, so a
-// fresh village gets moving within its first few gather cycles. (Their costs
-// need no override — the village curve starts as cheap as the tournament's.)
+// Village-only early-game pacing: the root, the four branch openers one hop
+// out, and the two first-unlock majors right behind them (woodworking's first
+// crafting recipes, rope_making's first extra resource) research in seconds
+// regardless of the 100-day normalization, so a fresh village gets moving —
+// and sees its first unlocks — within its first few gather cycles. (Their
+// costs need no override — the village curve starts as cheap as the
+// tournament's.)
 const VILLAGE_TIME_OVERRIDES: Record<string, number> = {
   basic_tools: 30,
   sharp_tools: 45,
   wood_attunement: 45,
   runic_saws: 45,
   mana_lathe: 45,
+  woodworking: 60,
+  rope_making: 60,
 };
 
 const villageAuthored: TechNode[] = [...AUTHORED.map((n) => villageBase[n.id]), ...villageFillers];
@@ -355,7 +360,7 @@ const villageAuthored: TechNode[] = [...AUTHORED.map((n) => villageBase[n.id]), 
 // fillers move, authored nodes stay pinned, ids (and thus saves) are
 // untouched. Deterministic and cheap (~200k distance checks at module load).
 {
-  const MIN_GAP = 118; // nodes render ~108px wide
+  const MIN_GAP = 132; // node boxes render ~108-132px wide
   const movable = new Set(villageFillers.map((n) => n.id));
   for (let sweep = 0; sweep < 24; sweep++) {
     const grid = new Map<string, TechNode[]>();

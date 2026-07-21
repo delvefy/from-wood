@@ -9,13 +9,14 @@ import { PATHS } from './paths';
 export type { MajorSpec, PathSpec } from './specs';
 
 // Two skill trees are generated from ONE authored source (core + majors +
-// paths), laid out as a big point-down triangle on an infinite canvas: the
-// root at the bottom vertex (0, 0), the Magic wedge rising up-LEFT, the Tech
-// wedge rising up-RIGHT (radial fans — radius grows with graph depth, so both
-// arms top out around the same height), and Magitech ONLY in the center — two
-// spine columns (spirit x=-240, matter x=+240) climbing between the wedges
-// and cresting above them, so the wonders crown the triangle's top. Spine
-// majors require one major from each side.
+// paths), laid out as a big point-UP triangle (pyramid) on an infinite
+// canvas: the root (start) at the bottom-center of the base (0, 0), the
+// Magic arm running left along the base into the bottom-left corner, the
+// Tech arm running right into the bottom-right corner (each arm's endgame
+// curls up its slant edge), and Magitech in the center — two spine columns
+// (spirit x=-240, matter x=+240) climbing from the base and converging to
+// the apex, where the wonders (end) crown the peak. Spine majors require one
+// major from each side.
 //
 // - TOURNAMENT: the authored 100 nodes as-is — root, 48 majors, 51 small
 //   path nodes — on the compact authored canvas.
@@ -73,7 +74,7 @@ export const RESEARCH_TOTAL_SECONDS: Record<GameMode, number> = {
 // the old flat ×100 on every node. The end value is tuned with the sim so
 // material stalls add ~50 days on top of the 50-day research queue.
 const TOURNAMENT_COST_CURVE = { rootValue: 2, endValue: 900_000 }; // 1 wood + 1 water at the root
-const VILLAGE_COST_CURVE = { rootValue: 2, endValue: 64_000_000 };
+const VILLAGE_COST_CURVE = { rootValue: 2, endValue: 71_000_000 };
 
 const AUTHORED_TIME = { root: 30, end: 86_400 };
 
@@ -297,21 +298,23 @@ edges.forEach((edge, idx) => {
   const tFrom = AUTHORED_BY_ID[edge.from].researchTimeSeconds;
   const tTo = AUTHORED_BY_ID[edge.to].researchTimeSeconds;
   // Fillers on same-branch edges inherit that branch. On cross-branch edges
-  // (the arm -> spine links) the branch follows POSITION instead — magic on
-  // the left wedge, tech on the right, magitech only in the center column —
-  // so the long cross-links don't streak magitech through the arm wedges.
-  const branchAt = (x: number): TechBranch =>
+  // (the arm -> spine links) the branch follows POSITION instead — magic in
+  // the bottom-left region, tech in the bottom-right, magitech in the center
+  // column and the whole peak above the arms — so the long cross-links read
+  // as arm-colored near the base and magitech as they climb to the apex.
+  // Thresholds are authored px, scaled to village canvas units.
+  const branchAt = (x: number, y: number): TechBranch =>
     parent.branch === child.branch
       ? child.branch
-      : x < -300
-        ? 'magic'
-        : x > 300
-          ? 'tech'
-          : 'magitech';
+      : Math.abs(x) <= 300 * VILLAGE_SCALE || y < -1400 * VILLAGE_SCALE
+        ? 'magitech'
+        : x < 0
+          ? 'magic'
+          : 'tech';
   let prev = edge.from;
   for (let i = 0; i < count; i++) {
     const t = (i + 1) / (count + 1);
-    const branch = branchAt(parent.x + dx * t);
+    const branch = branchAt(parent.x + dx * t, parent.y + dy * t);
     const name = fillerName(branch, fillerCounters[branch]++);
     const id = slug(name);
     const offset = i % 2 === 0 ? 26 : -26;

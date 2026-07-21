@@ -325,7 +325,7 @@
       class="world"
       style="transform: translate({vw / 2 - cam.x * zoom}px, {vh / 2 - cam.y * zoom}px) scale({zoom})"
     >
-      <svg class="edges" aria-hidden="true">
+      <svg class="edges" class:lod aria-hidden="true">
         {#each visibleEdges as e (e.id)}
           <line
             x1={e.x1}
@@ -598,6 +598,21 @@
     stroke: var(--magitech);
   }
 
+  /* Zoomed out, branch colors come from the --tree-* palette, which stays on
+     the village hues even in tournament mode — the arena theme's all-blue
+     branch colors made the map's regions impossible to tell apart. */
+  .edges.lod .edge.done.magic {
+    stroke: var(--tree-magic);
+  }
+
+  .edges.lod .edge.done.tech {
+    stroke: var(--tree-tech);
+  }
+
+  .edges.lod .edge.done.magitech {
+    stroke: var(--tree-magitech);
+  }
+
   /* Zoomed-out LOD dots: status first (what can I do?), branch color for
      owned nodes so cleared regions read as tinted territory on the map. */
   .dot {
@@ -623,15 +638,15 @@
   }
 
   .dot.owned.magic {
-    fill: var(--magic);
+    fill: var(--tree-magic);
   }
 
   .dot.owned.tech {
-    fill: var(--tech);
+    fill: var(--tree-tech);
   }
 
   .dot.owned.magitech {
-    fill: var(--magitech);
+    fill: var(--tree-magitech);
   }
 
   .node {

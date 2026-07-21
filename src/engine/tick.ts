@@ -3,7 +3,7 @@ import { RESOURCES } from '../content/resources';
 import { techById } from '../content/tech';
 import { get } from 'svelte/store';
 import { getAccount } from './account';
-import { gameMode } from './mode';
+import { gameMode, type GameMode } from './mode';
 import { computeMultipliers, harvestMultiplier } from './multipliers';
 import { craftTimeFactor, gatherTimeFactor } from './premium';
 import type { GameState, Recipe, ResourceId, TechNode } from './types';
@@ -44,7 +44,7 @@ export function pushUnique<T>(arr: T[], value: T): void {
 // Applies a finished research node: marks it owned, applies unlock effects,
 // and recomputes derived multipliers. Used by the tick (queue head finishing)
 // and by offline fast-forward.
-export function completeResearch(s: GameState, node: TechNode): void {
+export function completeResearch(s: GameState, node: TechNode, mode: GameMode): void {
   pushUnique(s.unlockedTech, node.id);
   for (const effect of node.effects) {
     if (effect.kind === 'unlockResource') {
@@ -56,7 +56,7 @@ export function completeResearch(s: GameState, node: TechNode): void {
     }
     // Multiplier effects need no unlock step — they're derived below.
   }
-  s.multipliers = computeMultipliers(s.unlockedTech);
+  s.multipliers = computeMultipliers(s.unlockedTech, mode);
 }
 
 // Unlocking a recipe reveals its output items in Market/top bar.
@@ -112,7 +112,7 @@ export function tick(s: GameState, seconds: number): GameState {
     remaining -= needed;
     s.researchQueue.shift();
     s.researchProgress = 0;
-    completeResearch(s, node);
+    completeResearch(s, node, mode);
   }
 
   // Crafting is a continuous flow too: each crafter completes

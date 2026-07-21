@@ -33,8 +33,9 @@ export type { MajorSpec, PathSpec } from './specs';
 //
 // Design rules:
 // - No speed effects anywhere. Only efficiency, always to BOTH buckets:
-//   every node gives +1% gather and +1% craft output, regardless of branch
-//   (majors, smalls and fillers alike).
+//   every node gives the mode's flat bonus to gather and craft output,
+//   regardless of branch (majors, smalls and fillers alike): +1% per village
+//   node, +5% per tournament node.
 // - `major` nodes unlock content (resources/recipes) and render larger.
 // - Coordinates are world px; keep ~150px between connected nodes.
 
@@ -123,22 +124,20 @@ function scaledCost(mix: Record<string, number>, target: number): Record<string,
   return out;
 }
 
-// Efficiency is uniform everywhere: every node, in every branch, gives +1%
-// to gathering AND +1% to crafting — no exceptions.
-function branchBonus(_branch: TechBranch): { percent: number; effects: TechEffect[] } {
-  const percent = 1;
-  return {
-    percent,
-    effects: [
-      { kind: 'gatherEfficiency', resource: 'all', percent },
-      { kind: 'craftEfficiency', percent },
-    ],
-  };
-}
+// Efficiency is uniform within a tree: every node, in every branch, gives the
+// mode's flat bonus to gathering AND crafting — no exceptions. The authored
+// nodes carry the village percent; the tournament bake swaps in its own.
+export const NODE_BONUS_PERCENT: Record<GameMode, number> = { main: 1, tournament: 5 };
 
-function smallMeta(branch: TechBranch): { description: string; effects: TechEffect[] } {
-  const { percent, effects } = branchBonus(branch);
-  return { description: `Gather +${percent}%, craft output +${percent}%`, effects };
+const bonusEffects = (percent: number): TechEffect[] => [
+  { kind: 'gatherEfficiency', resource: 'all', percent },
+  { kind: 'craftEfficiency', percent },
+];
+const bonusDescription = (percent: number) => `Gather +${percent}%, craft output +${percent}%`;
+
+function smallMeta(): { description: string; effects: TechEffect[] } {
+  const percent = NODE_BONUS_PERCENT.main;
+  return { description: bonusDescription(percent), effects: bonusEffects(percent) };
 }
 
 // ---- Authored assembly ------------------------------------------------------
@@ -171,7 +170,7 @@ for (const p of PATHS) {
     pathNodes.push({
       id,
       name,
-      ...smallMeta(p.branch),
+      ...smallMeta(),
       cost: p.cost,
       researchTimeSeconds: Math.round(p.time * PATH_STEP_GROWTH ** i),
       requires: [prev],
@@ -184,8 +183,7 @@ for (const p of PATHS) {
   (rewire[p.to] ??= {})[p.from] = prev;
 }
 
-// Majors: batch unlocks plus the same flat bonus every node carries
-// (+1% gather & craft).
+// Majors: batch unlocks plus the same flat bonus every node carries.
 const majorNodes: TechNode[] = MAJORS.map((m) => ({
   id: m.id,
   name: m.name,
@@ -196,7 +194,7 @@ const majorNodes: TechNode[] = MAJORS.map((m) => ({
   effects: [
     ...(m.resources ?? []).map((id) => ({ kind: 'unlockResource', id }) as const),
     ...m.recipes.map((id) => ({ kind: 'unlockRecipe', id }) as const),
-    ...branchBonus(m.branch).effects,
+    ...bonusEffects(NODE_BONUS_PERCENT.main),
   ],
   branch: m.branch,
   x: m.x,
@@ -219,6 +217,14 @@ const TOURNAMENT_COMPRESSION = RESEARCH_TOTAL_SECONDS.tournament / RESEARCH_TOTA
 
 const TOURNAMENT_TREE: TechNode[] = AUTHORED.map((n) => ({
   ...n,
+  description:
+    n.description === bonusDescription(NODE_BONUS_PERCENT.main)
+      ? bonusDescription(NODE_BONUS_PERCENT.tournament)
+      : n.description,
+  effects: [
+    ...n.effects.filter((e) => e.kind !== 'gatherEfficiency' && e.kind !== 'craftEfficiency'),
+    ...bonusEffects(NODE_BONUS_PERCENT.tournament),
+  ],
   cost: scaledCost(n.cost, targetCostValue(n.researchTimeSeconds, TOURNAMENT_COST_CURVE)),
   researchTimeSeconds:
     Math.round(n.researchTimeSeconds * PRE_SPLIT_TIME_SCALE) * TOURNAMENT_COMPRESSION,
@@ -322,7 +328,7 @@ edges.forEach((edge, idx) => {
     villageFillers.push({
       id,
       name,
-      ...smallMeta(branch),
+      ...smallMeta(),
       cost: AUTHORED_BY_ID[edge.from].cost,
       researchTimeSeconds: tFrom * (tTo / tFrom) ** t,
       requires: [prev],
@@ -436,7 +442,6 @@ export function techById(mode: GameMode): Record<string, TechNode> {
   return TECH_BY_ID_BY_MODE[mode];
 }
 
-// Effects (unlocks and efficiency percents) are identical wherever an id
-// exists in both trees, and tournament ids are a subset of village ids — so
-// effect lookups (multiplier recomputation) can stay mode-blind.
-export const TECH_EFFECTS_BY_ID: Record<string, TechNode> = TECH_BY_ID_BY_MODE.main;
+// NOTE: efficiency percents differ per mode (NODE_BONUS_PERCENT), so effect
+// lookups (multiplier recomputation) must go through techById(mode) — there is
+// deliberately no mode-blind effects map.

@@ -37,7 +37,7 @@ const unlockedRecipes = new Set(RECIPES.filter((r) => r.unlockedByDefault).map((
 const researched = new Set<string>();
 const queue: string[] = [];
 let researchProgress = 0;
-let multipliers = computeMultipliers([]);
+let multipliers = computeMultipliers([], MODE);
 const gatherProgress: Record<string, number> = {};
 const craftProgress: Record<string, number> = {};
 let gatherAssignment: Record<string, number> = {};
@@ -67,7 +67,7 @@ function completeResearch(id: string): void {
       for (const out of Object.keys(RECIPE_BY_ID[effect.id].outputs)) unlockedResources.add(out);
     }
   }
-  multipliers = computeMultipliers([...researched]);
+  multipliers = computeMultipliers([...researched], MODE);
 }
 
 // ---- Planner --------------------------------------------------------------------

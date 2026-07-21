@@ -17,6 +17,13 @@
   --magic: #8b3fd6;
   --tech: #1878b8;
   --magitech: #c98a10;
+  /* Zoomed-out tech-tree branch colors. Literal copies of the branch colors
+     above (not var() references) so the tournament palette below — which
+     pulls --magic/--tech/--magitech toward indistinguishable blues — leaves
+     the map's territory tints tellable-apart. */
+  --tree-magic: #8b3fd6;
+  --tree-tech: #1878b8;
+  --tree-magitech: #c98a10;
   --shadow: 0 2px 10px rgb(96 66 18 / 14%);
   --grad-primary: linear-gradient(135deg, #8b3fd6, #1878b8);
 
@@ -51,6 +58,9 @@
   --magic: #c774ff;
   --tech: #4dd2ff;
   --magitech: #ffc94d;
+  --tree-magic: #c774ff;
+  --tree-tech: #4dd2ff;
+  --tree-magitech: #ffc94d;
   --shadow: 0 4px 16px rgb(0 0 0 / 45%);
   --grad-primary: linear-gradient(135deg, #a855f7, #22d3ee);
 

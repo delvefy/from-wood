@@ -1,10 +1,10 @@
 import type { PathSpec } from './specs';
 
-// The 49 authored small +1% nodes, as chains along major->major edges:
+// The 49 authored small bonus nodes, as chains along major->major edges:
 // 7 tech, 14 magic, 14 spirit spine, 14 matter spine. Names become node
 // ids (slugified), so keep them unique tree-wide. Every small node gives
-// +1% gather and +1% craft, regardless of branch — effects are fixed in
-// index.ts. Costs use resources the player is guaranteed
+// the mode's flat gather and craft bonus (NODE_BONUS_PERCENT), regardless
+// of branch — effects are fixed in index.ts. Costs use resources the player is guaranteed
 // to have unlocked by the path's `from` anchor and only set the resource
 // MIX — the global cost curve (index.ts) sets amounts.
 // `time` is the AUTHORED seconds of the chain's first node; each later node

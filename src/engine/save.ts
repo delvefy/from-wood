@@ -93,7 +93,7 @@ export async function loadGame(): Promise<void> {
     unlockedRecipes: union(base.unlockedRecipes, saved.unlockedRecipes),
     unlockedTech: union([], saved.unlockedTech),
     researchQueue: [...(saved.researchQueue ?? [])],
-    multipliers: computeMultipliers(saved.unlockedTech ?? []),
+    multipliers: computeMultipliers(saved.unlockedTech ?? [], mode),
   };
 
   // Legacy saves kept premium purchases inside the slot; move them onto the

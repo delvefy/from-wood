@@ -20,7 +20,8 @@ export function createInitialState(): GameState {
     craftAssignment: {},
     researchQueue: [],
     researchProgress: 0,
-    multipliers: computeMultipliers([]),
+    // Empty tech set → identity multipliers; the mode argument is moot here.
+    multipliers: computeMultipliers([], 'main'),
     lastSeen: Date.now(),
   };
 }

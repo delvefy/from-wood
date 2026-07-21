@@ -72,10 +72,10 @@ const CRAFT_SUBSTEP_SECONDS = 60;
 // craft flows. Deterministic and cheap; also used to fast-forward offline
 // progress.
 export function tick(s: GameState, seconds: number): GameState {
-  // Premium managers shorten cycle durations; hoisted since they apply to all.
-  // Account-level, so they hold in the village and tournament slots alike.
-  // Worker pace is mode-independent; research durations are baked into each
-  // mode's own tree (see content/tech).
+  // Premium managers double flow rates (0.5× time-per-run); hoisted since
+  // they apply to all. Account-level, so they hold in the village and
+  // tournament slots alike. Worker pace is mode-independent; research
+  // durations are baked into each mode's own tree (see content/tech).
   const acct = getAccount();
   const mode = get(gameMode);
   const gatherFactor = gatherTimeFactor(acct);

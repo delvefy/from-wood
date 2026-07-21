@@ -11,7 +11,9 @@ export function premiumOwned(a: AccountData, id: PremiumId): number {
   return a.premium[id] ?? 0;
 }
 
-// Managers: flat on/off boosts (unique items, so counts are 0 or 1).
+// Managers: flat on/off boosts (unique items, so counts are 0 or 1). The
+// factor scales the time-per-run, which under continuous flows is exactly a
+// 2× rate: rate = amount / (baseTime × factor).
 export function gatherTimeFactor(a: AccountData): number {
   return premiumOwned(a, 'gatherManager') > 0 ? 0.5 : 1;
 }

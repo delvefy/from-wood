@@ -3,7 +3,7 @@
   import ProgressBar from './ProgressBar.svelte';
   import SearchBox from './SearchBox.svelte';
   import { RESOURCES } from '../content/resources';
-  import { TECH } from '../content/tech';
+  import { techTree } from '../content/tech';
   import { GATHERER } from '../content/workers';
   import { account } from '../engine/account';
   import { assignAllWorkers, assignWorker, idleWorkers, unassignAllWorkers } from '../engine/actions';
@@ -34,8 +34,10 @@
   const idle = $derived(idleWorkers($game));
 
   // The tech node whose research unlocks this resource (for the locked hint).
+  // Unlock effects live on majors, which are identical in both mode trees, so
+  // the village tree serves as the lookup for either mode.
   function unlockedBy(resourceId: string) {
-    return TECH.find((t) =>
+    return techTree('main').find((t) =>
       t.effects.some((e) => e.kind === 'unlockResource' && e.id === resourceId),
     );
   }

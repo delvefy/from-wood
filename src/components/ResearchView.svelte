@@ -3,7 +3,7 @@
   import Icon from './Icon.svelte';
   import ProgressBar from './ProgressBar.svelte';
   import { RESOURCE_BY_ID } from '../content/resources';
-  import { researchTime, techCost, TECH, TECH_BY_ID } from '../content/tech';
+  import { techById, techTree } from '../content/tech';
   import { queueResearch } from '../engine/actions';
   import { gameMode } from '../engine/mode';
   import { game } from '../engine/state';
@@ -12,6 +12,11 @@
   import { formatDuration } from '../util/format';
   import { focusTech, openMaterial } from '../util/nav';
   import { settings } from '../util/settings';
+
+  // Each mode renders its own tree: the 1000-node village triangle or the
+  // 100-node tournament one. Derived so a mode switch swaps the canvas live.
+  const tree = $derived(techTree($gameMode));
+  const byId = $derived(techById($gameMode));
 
   // ---- Camera: world point at the viewport center, plus zoom -----------------
   // Persisted as a UI preference so the tree reopens where you left it.
@@ -35,7 +40,7 @@
     return null;
   }
 
-  const MIN_ZOOM = 0.1;
+  const MIN_ZOOM = 0.04; // far enough out to frame the 1000-node village triangle
   const MAX_ZOOM = 2.5;
 
   const savedCam = loadCam();
@@ -83,7 +88,7 @@
     const id = $focusTech;
     if (!id) return;
     focusTech.set(null);
-    const node = TECH_BY_ID[id];
+    const node = byId[id];
     if (!node) return;
     cam.x = node.x;
     cam.y = node.y;
@@ -154,30 +159,32 @@
   });
 
   // ---- Tree data ---------------------------------------------------------------
-  const edges = TECH.flatMap((node) =>
-    node.requires.map((parentId) => {
-      const parent = TECH_BY_ID[parentId]!;
-      return {
-        id: `${parentId}->${node.id}`,
-        parentId,
-        branch: node.branch,
-        x1: parent.x,
-        y1: parent.y,
-        x2: node.x,
-        y2: node.y,
-      };
-    }),
+  const edges = $derived(
+    tree.flatMap((node) =>
+      node.requires.map((parentId) => {
+        const parent = byId[parentId]!;
+        return {
+          id: `${parentId}->${node.id}`,
+          parentId,
+          branch: node.branch,
+          x1: parent.x,
+          y1: parent.y,
+          x2: node.x,
+          y2: node.y,
+        };
+      }),
+    ),
   );
 
-  // Cull to the camera viewport: the tree holds ~500 nodes and edges, and
-  // mounting them all means every per-second state update re-diffs the whole
-  // forest. Padded in world units so things slide in before their box enters;
-  // covers the node's half-size plus its glow.
+  // Cull to the camera viewport: the village tree holds 1000 nodes and edges,
+  // and mounting them all means every per-second state update re-diffs the
+  // whole forest. Padded in world units so things slide in before their box
+  // enters; covers the node's half-size plus its glow.
   const CULL_PAD = 200;
   const cullHalfW = $derived(vw / 2 / zoom + CULL_PAD);
   const cullHalfH = $derived(vh / 2 / zoom + CULL_PAD);
   const visibleNodes = $derived(
-    TECH.filter(
+    tree.filter(
       (n) => Math.abs(n.x - cam.x) < cullHalfW && Math.abs(n.y - cam.y) < cullHalfH,
     ),
   );
@@ -203,10 +210,9 @@
     return satisfied ? 'available' : 'locked';
   }
 
-  // Cost and duration are mode-dependent: tournaments run a cheaper price
-  // curve and a compressed research clock.
-  const nodeCost = (node: TechNode) => techCost(node, $gameMode);
-  const nodeTime = (node: TechNode) => researchTime(node, $gameMode);
+  // Cost and duration are mode-dependent, baked into each mode's tree nodes.
+  const nodeCost = (node: TechNode) => node.cost;
+  const nodeTime = (node: TechNode) => node.researchTimeSeconds;
 
   // Research locks in when queued — no cancel, no refund.
   function tap(node: TechNode, st: Status) {
@@ -221,12 +227,12 @@
   }
 
   const activeNode = $derived(
-    $game.researchQueue.length > 0 ? TECH_BY_ID[$game.researchQueue[0]] : null,
+    $game.researchQueue.length > 0 ? byId[$game.researchQueue[0]] : null,
   );
 
   // Nodes the player can start right now: prereqs met AND affordable.
   const readyNodes = $derived(
-    TECH.filter((n) => status(n) === 'available' && canAfford($game, nodeCost(n))),
+    tree.filter((n) => status(n) === 'available' && canAfford($game, nodeCost(n))),
   );
 
   // Cycles through ready nodes so repeated taps tour all of them.
@@ -247,7 +253,7 @@
   const queueTotalSeconds = $derived(
     (activeNode ? nodeTime(activeNode) - $game.researchProgress : 0) +
       queuedIds.reduce((sum, id) => {
-        const node = TECH_BY_ID[id];
+        const node = byId[id];
         return sum + (node ? nodeTime(node) : 0);
       }, 0),
   );
@@ -275,7 +281,7 @@
         {#if queueOpen}
           <ol class="queue-list">
             {#each queuedIds as id, i (id)}
-              {@const node = TECH_BY_ID[id]}
+              {@const node = byId[id]}
               <li class="qrow">
                 <button class="qname" title="Show in tree" onclick={() => jumpToNode(id)}>
                   <span class="qnum">{i + 2}.</span>

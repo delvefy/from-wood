@@ -2,18 +2,27 @@ import type { GameMode } from '../../engine/mode';
 import type { TechBranch, TechEffect, TechNode } from '../../engine/types';
 import { RESOURCE_BY_ID } from '../resources';
 import { CORE } from './core';
+import { fillerName } from './fillers';
 import { MAJORS } from './majors';
 import { PATHS } from './paths';
 
 export type { MajorSpec, PathSpec } from './specs';
 
-// A 100-node skill tree on an infinite canvas: the root at (0, 0) plus
-// 30 Magic nodes growing LEFT (x < 0), 30 Tech nodes growing RIGHT (x > 0),
-// and two Magitech spines of 20 nodes each running NORTH (y < 0, root
-// included) and SOUTH (y > 0) — spine majors require one major from each
-// side.
+// Two skill trees are generated from ONE authored source (core + majors +
+// paths), laid out as a big point-down triangle on an infinite canvas: the
+// root at the bottom vertex (0, 0), the Magic arm rising up-left, the Tech
+// arm rising up-right, and Magitech ONLY at the top — two spine columns
+// (spirit x=-240, matter x=+240) climbing the center to the apex wonders.
+// Spine majors require one major from each side.
 //
-// The tree is assembled from three layers:
+// - TOURNAMENT: the authored 100 nodes as-is — root, 48 majors, 51 small
+//   path nodes — on the compact authored canvas.
+// - VILLAGE (main): a 1000-node superset. The same 100 authored nodes keep
+//   their ids on a canvas scaled up ~5x, and 900 generated filler smalls
+//   (named from pools in fillers.ts) are spliced into every edge, rewiring
+//   `requires` through the chain.
+//
+// The authored layers:
 // - CORE: the hand-placed root.
 // - MAJORS: 48 unlock/keystone nodes that open recipe/resource batches.
 // - PATHS: chains of 51 small +1% nodes generated along each major->major
@@ -22,7 +31,7 @@ export type { MajorSpec, PathSpec } from './specs';
 // Design rules:
 // - No speed effects anywhere. Only efficiency, always to BOTH buckets:
 //   every magic/tech node gives +1% gather and +1% craft output, every
-//   magitech node +2% of each (majors and smalls alike).
+//   magitech node +2% of each (majors, smalls and fillers alike).
 // - `major` nodes unlock content (resources/recipes) and render larger.
 // - Coordinates are world px; keep ~150px between connected nodes.
 
@@ -35,27 +44,30 @@ const slug = (name: string) =>
 // ---- Balance curves ---------------------------------------------------------
 // Authored costs and times only set the tree's SHAPE: cost entries fix each
 // node's resource mix, and the authored 30s..86400s times fix how eras relate.
-// The passes below rescale both onto per-mode targets:
-// - Time: node.researchTimeSeconds is baked at VILLAGE pace, normalized so the
-//   whole tree sums to RESEARCH_TOTAL_SECONDS.main of continuous research.
-//   Tournament runs the same queue compressed to its own total — the engine
-//   and Research UI read durations through researchTime().
+// The build below rescales both onto per-mode targets:
+// - Time: each tree's researchTimeSeconds is baked so the whole tree sums to
+//   RESEARCH_TOTAL_SECONDS of continuous research (100 days for the 1000-node
+//   village, 1 day for the 100-node tournament).
 // - Cost: each node's cost value (amounts × base sell price) follows a power
-//   curve of its authored time, from rootValue to endValue. node.cost holds
-//   the village cost; tournament costs live in a side table read via techCost().
+//   curve of its authored time. Each mode has its own curve, baked into its
+//   own nodes.
 export const RESEARCH_TOTAL_SECONDS: Record<GameMode, number> = {
   main: 100 * 86_400, // 100 days of continuous research
   tournament: 24 * 3_600, // 1 day
 };
 
-// The cost curve is defined at TOURNAMENT scale and tuned with
-// `npm run simulate` (scripts/simulate-tournament.ts) so a player with
-// 100 gatherers and 10 crafters finishes the whole tree in ~48h — the 24h
-// research queue plus ~24h of material stalls. Re-run the sim after changing
-// curves, recipes or worker math. Village costs are exactly
-// VILLAGE_COST_FACTOR × the tournament cost, entry for entry.
-const COST_CURVE = { rootValue: 2, endValue: 900_000 }; // 1 wood + 1 water at the root
-const VILLAGE_COST_FACTOR = 100;
+// The tournament curve is tuned with `npm run simulate`
+// (scripts/simulate-tournament.ts) so a player with 100 gatherers and 10
+// crafters finishes the whole tree in ~48h — the 24h research queue plus
+// ~24h of material stalls. Re-run the sim after changing curves, recipes or
+// worker math.
+//
+// The village curve shares the tournament's cheap start (so a fresh village
+// gets moving within its first few gather cycles) and ends 100× the
+// tournament's final node — costs spread smoothly between the two instead of
+// the old flat ×100 on every node.
+const TOURNAMENT_COST_CURVE = { rootValue: 2, endValue: 900_000 }; // 1 wood + 1 water at the root
+const VILLAGE_COST_CURVE = { rootValue: 2, endValue: 90_000_000 };
 
 const AUTHORED_TIME = { root: 30, end: 86_400 };
 
@@ -67,8 +79,11 @@ const price = (id: string) => RESOURCE_BY_ID[id]?.baseSellPrice ?? 0;
 const costValue = (cost: Record<string, number>): number =>
   Object.entries(cost).reduce((sum, [id, n]) => sum + n * price(id), 0);
 
-function targetCostValue(authoredSeconds: number): number {
-  const { rootValue, endValue } = COST_CURVE;
+function targetCostValue(
+  authoredSeconds: number,
+  curve: { rootValue: number; endValue: number },
+): number {
+  const { rootValue, endValue } = curve;
   const exp = Math.log(endValue / rootValue) / Math.log(AUTHORED_TIME.end / AUTHORED_TIME.root);
   return rootValue * (authoredSeconds / AUTHORED_TIME.root) ** exp;
 }
@@ -118,7 +133,9 @@ function smallMeta(branch: TechBranch): { description: string; effects: TechEffe
   return { description: `Gather +${percent}%, craft output +${percent}%`, effects };
 }
 
-// ---- Assembly -------------------------------------------------------------------
+// ---- Authored assembly ------------------------------------------------------
+// Builds the 100 authored nodes with AUTHORED costs (mixes) and times
+// (seconds); the per-mode bakes below turn those into real prices/durations.
 const pos: Record<string, { x: number; y: number }> = {};
 for (const n of CORE) pos[n.id] = { x: n.x, y: n.y };
 for (const m of MAJORS) pos[m.id] = { x: m.x, y: m.y };
@@ -160,7 +177,7 @@ for (const p of PATHS) {
 }
 
 // Majors: batch unlocks plus the same branch bonus every node carries
-// (+1% gather & craft, +2% each on the spine).
+// (+1% gather & craft, +2% each on the spines).
 const majorNodes: TechNode[] = MAJORS.map((m) => ({
   id: m.id,
   name: m.name,
@@ -180,65 +197,127 @@ const majorNodes: TechNode[] = MAJORS.map((m) => ({
 }));
 
 const AUTHORED: TechNode[] = [...CORE, ...majorNodes, ...pathNodes];
-
-const VILLAGE_TIME_SCALE =
-  RESEARCH_TOTAL_SECONDS.main / AUTHORED.reduce((sum, n) => sum + n.researchTimeSeconds, 0);
-
-const TOURNAMENT_COST: Record<string, Record<string, number>> = Object.fromEntries(
-  AUTHORED.map((n) => [n.id, scaledCost(n.cost, targetCostValue(n.researchTimeSeconds))]),
+const AUTHORED_BY_ID: Record<string, TechNode> = Object.fromEntries(
+  AUTHORED.map((n) => [n.id, n]),
 );
 
-// Baked at village pace/prices — village cost is the tournament cost ×100,
-// entry for entry. Tournament reads go through the helpers below.
-export const TECH: TechNode[] = AUTHORED.map((node) => ({
-  ...node,
-  cost: Object.fromEntries(
-    Object.entries(TOURNAMENT_COST[node.id]).map(([id, n]) => [id, n * VILLAGE_COST_FACTOR]),
-  ),
-  researchTimeSeconds: Math.round(node.researchTimeSeconds * VILLAGE_TIME_SCALE),
+// ---- Tournament tree --------------------------------------------------------
+// The authored 100 nodes on the authored canvas. Times normalize the queue to
+// one day; the round() at 100-day scale BEFORE compressing replicates the
+// pre-split bake, keeping every tournament duration and cost bit-identical to
+// the old shared tree.
+const AUTHORED_TOTAL_SECONDS = AUTHORED.reduce((sum, n) => sum + n.researchTimeSeconds, 0);
+const PRE_SPLIT_TIME_SCALE = RESEARCH_TOTAL_SECONDS.main / AUTHORED_TOTAL_SECONDS;
+const TOURNAMENT_COMPRESSION = RESEARCH_TOTAL_SECONDS.tournament / RESEARCH_TOTAL_SECONDS.main;
+
+const TOURNAMENT_TREE: TechNode[] = AUTHORED.map((n) => ({
+  ...n,
+  cost: scaledCost(n.cost, targetCostValue(n.researchTimeSeconds, TOURNAMENT_COST_CURVE)),
+  researchTimeSeconds:
+    Math.round(n.researchTimeSeconds * PRE_SPLIT_TIME_SCALE) * TOURNAMENT_COMPRESSION,
 }));
 
-export const TECH_BY_ID: Record<string, TechNode> = Object.fromEntries(
-  TECH.map((t) => [t.id, t]),
+// ---- Village tree -----------------------------------------------------------
+// The same 100 nodes on a scaled-up canvas, plus generated filler smalls
+// spliced into every edge until the tree hits exactly VILLAGE_NODE_TARGET.
+const VILLAGE_NODE_TARGET = 1000;
+const VILLAGE_SPACING = 150; // px between chain neighbours once fillers are in
+
+const edges = AUTHORED.flatMap((n) =>
+  n.requires.map((from) => {
+    const a = AUTHORED_BY_ID[from];
+    return { from, to: n.id, length: Math.hypot(n.x - a.x, n.y - a.y) };
+  }),
 );
 
-// The first five nodes — the root and the four branch openers one hop out —
-// are cheap and fast so a fresh village gets moving within its first few
-// gather cycles; the ramp starts one node later.
-const FIRST_FIVE = [
-  'basic_tools',
-  'sharp_tools', // tech opener
-  'wood_attunement', // magic opener
-  'runic_saws', // north spine opener
-  'mana_lathe', // south spine opener
-];
+const FILL_TOTAL = VILLAGE_NODE_TARGET - AUTHORED.length;
+const TOTAL_EDGE_LENGTH = edges.reduce((sum, e) => sum + e.length, 0);
 
-// Village-only early-game pacing, cost side: the first five are 100× cheaper
-// than the ×100 village pricing would make them (i.e. at tournament prices).
-// Applied at read time (like the time overrides below) so the rest of the
-// tree keeps its curve values.
-const VILLAGE_CHEAP_FACTOR = 100;
-const VILLAGE_COST_OVERRIDES: Record<string, Record<string, number>> = Object.fromEntries(
-  FIRST_FIVE.map((id) => [
-    id,
-    Object.fromEntries(
-      Object.entries(TECH_BY_ID[id].cost).map(([res, n]) => [
-        res,
-        Math.max(1, Math.round(n / VILLAGE_CHEAP_FACTOR)),
-      ]),
-    ),
+// Canvas scale chosen so that, with FILL_TOTAL nodes spliced in, the average
+// gap along an edge lands on VILLAGE_SPACING.
+const VILLAGE_SCALE = (VILLAGE_SPACING * (FILL_TOTAL + edges.length)) / TOTAL_EDGE_LENGTH;
+
+// Fillers per edge, proportional to scaled edge length, adjusted by largest
+// remainder (deterministically) so the counts sum to exactly FILL_TOTAL.
+const rawQuota = edges.map((e) => Math.max(0, (e.length * VILLAGE_SCALE) / VILLAGE_SPACING - 1));
+const fillCounts = rawQuota.map(Math.floor);
+{
+  let diff = FILL_TOTAL - fillCounts.reduce((sum, n) => sum + n, 0);
+  const byRemainder = rawQuota
+    .map((q, i) => ({ frac: q - fillCounts[i], i }))
+    .sort((a, b) => b.frac - a.frac || a.i - b.i)
+    .map((r) => r.i);
+  for (let k = 0; diff > 0; k = (k + 1) % byRemainder.length) {
+    fillCounts[byRemainder[k]]++;
+    diff--;
+  }
+  for (let k = byRemainder.length - 1; diff < 0; k = (k - 1 + byRemainder.length) % byRemainder.length) {
+    if (fillCounts[byRemainder[k]] > 0) {
+      fillCounts[byRemainder[k]]--;
+      diff++;
+    }
+  }
+}
+
+// Village copies of the authored nodes (scaled positions, requires rewired
+// through fillers below). Costs/times still authored here; baked after.
+const villageBase: Record<string, TechNode> = Object.fromEntries(
+  AUTHORED.map((n) => [
+    n.id,
+    {
+      ...n,
+      requires: [...n.requires],
+      x: Math.round(n.x * VILLAGE_SCALE),
+      y: Math.round(n.y * VILLAGE_SCALE),
+    },
   ]),
 );
 
-export function techCost(node: TechNode, mode: GameMode): Record<string, number> {
-  if (mode === 'tournament') return TOURNAMENT_COST[node.id] ?? node.cost;
-  return VILLAGE_COST_OVERRIDES[node.id] ?? node.cost;
-}
+const fillerCounters: Record<TechBranch, number> = { magic: 0, tech: 0, magitech: 0 };
+const villageFillers: TechNode[] = [];
+edges.forEach((edge, idx) => {
+  const count = fillCounts[idx];
+  if (count <= 0) return;
+  const parent = villageBase[edge.from];
+  const child = villageBase[edge.to];
+  const dx = child.x - parent.x;
+  const dy = child.y - parent.y;
+  const len = Math.hypot(dx, dy);
+  const px = -dy / len;
+  const py = dx / len;
+  // Authored seconds interpolate geometrically parent -> child, so filler
+  // costs (via the curve) ramp smoothly across the edge. The cost MIX is the
+  // PARENT's: always obtainable by the time the chain starts — the child's
+  // mix may charge materials that another of its parents unlocks.
+  const tFrom = AUTHORED_BY_ID[edge.from].researchTimeSeconds;
+  const tTo = AUTHORED_BY_ID[edge.to].researchTimeSeconds;
+  let prev = edge.from;
+  for (let i = 0; i < count; i++) {
+    const branch = child.branch;
+    const name = fillerName(branch, fillerCounters[branch]++);
+    const id = slug(name);
+    const t = (i + 1) / (count + 1);
+    const offset = i % 2 === 0 ? 26 : -26;
+    villageFillers.push({
+      id,
+      name,
+      ...smallMeta(branch),
+      cost: AUTHORED_BY_ID[edge.from].cost,
+      researchTimeSeconds: tFrom * (tTo / tFrom) ** t,
+      requires: [prev],
+      branch,
+      x: Math.round(parent.x + dx * t + px * offset),
+      y: Math.round(parent.y + dy * t + py * offset),
+    });
+    prev = id;
+  }
+  child.requires = child.requires.map((r) => (r === edge.from ? prev : r));
+});
 
-// Village-only early-game pacing, time side: the first five research in
-// seconds regardless of what the 100-day normalization would give them.
-// Applied at read time so the rest of the tree (and all tournament times)
-// keep their normalized values.
+// Village-only early-game pacing: the root and the four branch openers one
+// hop out research in seconds regardless of the 100-day normalization, so a
+// fresh village gets moving within its first few gather cycles. (Their costs
+// need no override — the village curve starts as cheap as the tournament's.)
 const VILLAGE_TIME_OVERRIDES: Record<string, number> = {
   basic_tools: 30,
   sharp_tools: 45,
@@ -247,14 +326,91 @@ const VILLAGE_TIME_OVERRIDES: Record<string, number> = {
   mana_lathe: 45,
 };
 
-// Tournament compresses the village queue by a flat factor (1 day / 100 days).
-export function researchTimeFactor(mode: GameMode): number {
-  return RESEARCH_TOTAL_SECONDS[mode] / RESEARCH_TOTAL_SECONDS.main;
+const villageAuthored: TechNode[] = [...AUTHORED.map((n) => villageBase[n.id]), ...villageFillers];
+
+// Where several cross-links converge on the same spine major, filler chains
+// from different edges can land on top of each other. A few grid-hashed
+// repulsion sweeps push overlapping pairs to ~a node's footprint apart —
+// fillers move, authored nodes stay pinned, ids (and thus saves) are
+// untouched. Deterministic and cheap (~200k distance checks at module load).
+{
+  const MIN_GAP = 118; // nodes render ~108px wide
+  const movable = new Set(villageFillers.map((n) => n.id));
+  for (let sweep = 0; sweep < 24; sweep++) {
+    const grid = new Map<string, TechNode[]>();
+    const keyOf = (x: number, y: number) => `${Math.floor(x / MIN_GAP)},${Math.floor(y / MIN_GAP)}`;
+    for (const n of villageAuthored) {
+      const key = keyOf(n.x, n.y);
+      (grid.get(key) ?? grid.set(key, []).get(key)!).push(n);
+    }
+    let moved = false;
+    for (const n of villageAuthored) {
+      const cx = Math.floor(n.x / MIN_GAP);
+      const cy = Math.floor(n.y / MIN_GAP);
+      for (let gx = cx - 1; gx <= cx + 1; gx++) {
+        for (let gy = cy - 1; gy <= cy + 1; gy++) {
+          for (const m of grid.get(`${gx},${gy}`) ?? []) {
+            if (m.id <= n.id) continue; // each pair once
+            const d = Math.hypot(n.x - m.x, n.y - m.y);
+            if (d >= MIN_GAP) continue;
+            // Exactly-coincident pairs get a deterministic split direction.
+            const ux = d > 0 ? (n.x - m.x) / d : 1;
+            const uy = d > 0 ? (n.y - m.y) / d : 0;
+            const push = (MIN_GAP - d) / (movable.has(n.id) && movable.has(m.id) ? 2 : 1) + 1;
+            if (movable.has(n.id)) {
+              n.x = Math.round(n.x + ux * push);
+              n.y = Math.round(n.y + uy * push);
+              moved = true;
+            }
+            if (movable.has(m.id)) {
+              m.x = Math.round(m.x - ux * push);
+              m.y = Math.round(m.y - uy * push);
+              moved = true;
+            }
+          }
+        }
+      }
+    }
+    if (!moved) break;
+  }
+}
+const VILLAGE_AUTHORED_TOTAL = villageAuthored.reduce((sum, n) => sum + n.researchTimeSeconds, 0);
+const VILLAGE_TIME_SCALE = RESEARCH_TOTAL_SECONDS.main / VILLAGE_AUTHORED_TOTAL;
+
+const VILLAGE_TREE: TechNode[] = villageAuthored.map((n) => ({
+  ...n,
+  cost: scaledCost(n.cost, targetCostValue(n.researchTimeSeconds, VILLAGE_COST_CURVE)),
+  researchTimeSeconds:
+    VILLAGE_TIME_OVERRIDES[n.id] ?? Math.max(1, Math.round(n.researchTimeSeconds * VILLAGE_TIME_SCALE)),
+}));
+
+if (VILLAGE_TREE.length !== VILLAGE_NODE_TARGET) {
+  throw new Error(`village tree has ${VILLAGE_TREE.length} nodes, expected ${VILLAGE_NODE_TARGET}`);
 }
 
-export function researchTime(node: TechNode, mode: GameMode): number {
-  if (mode === 'main') {
-    return VILLAGE_TIME_OVERRIDES[node.id] ?? node.researchTimeSeconds;
-  }
-  return node.researchTimeSeconds * researchTimeFactor(mode);
+// ---- Per-mode access --------------------------------------------------------
+// Costs and durations are baked into each tree's nodes, so consumers read
+// node.cost / node.researchTimeSeconds directly — just make sure the node
+// came from the right mode's tree.
+export const TECH_TREES: Record<GameMode, TechNode[]> = {
+  main: VILLAGE_TREE,
+  tournament: TOURNAMENT_TREE,
+};
+
+const TECH_BY_ID_BY_MODE: Record<GameMode, Record<string, TechNode>> = {
+  main: Object.fromEntries(VILLAGE_TREE.map((t) => [t.id, t])),
+  tournament: Object.fromEntries(TOURNAMENT_TREE.map((t) => [t.id, t])),
+};
+
+export function techTree(mode: GameMode): TechNode[] {
+  return TECH_TREES[mode];
 }
+
+export function techById(mode: GameMode): Record<string, TechNode> {
+  return TECH_BY_ID_BY_MODE[mode];
+}
+
+// Effects (unlocks and efficiency percents) are identical wherever an id
+// exists in both trees, and tournament ids are a subset of village ids — so
+// effect lookups (multiplier recomputation) can stay mode-blind.
+export const TECH_EFFECTS_BY_ID: Record<string, TechNode> = TECH_BY_ID_BY_MODE.main;

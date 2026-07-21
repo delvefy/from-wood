@@ -15,5 +15,5 @@ export const gameMode = writable<GameMode>(load());
 gameMode.subscribe((m) => localStorage.setItem(STORAGE_KEY, m));
 
 // Workers run at the same pace in both modes: the tournament sprint comes
-// entirely from its compressed research times and cheaper costs (see
-// researchTime/techCost in content/tech).
+// entirely from its own tree — 100 nodes vs the village's 1000, compressed
+// research times and cheaper costs (see content/tech).

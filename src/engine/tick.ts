@@ -1,6 +1,6 @@
 import { RECIPE_BY_ID } from '../content/recipes';
 import { RESOURCES } from '../content/resources';
-import { researchTime, TECH_BY_ID } from '../content/tech';
+import { techById } from '../content/tech';
 import { get } from 'svelte/store';
 import { getAccount } from './account';
 import { gameMode } from './mode';
@@ -69,8 +69,8 @@ export function unlockOutputs(s: GameState, recipe: Recipe): void {
 export function tick(s: GameState, seconds: number): GameState {
   // Premium managers shorten cycle durations; hoisted since they apply to all.
   // Account-level, so they hold in the village and tournament slots alike.
-  // Worker pace is mode-independent; only research durations are compressed
-  // in tournaments (see researchTime).
+  // Worker pace is mode-independent; research durations are baked into each
+  // mode's own tree (see content/tech).
   const acct = getAccount();
   const mode = get(gameMode);
   const gatherFactor = gatherTimeFactor(acct);
@@ -98,13 +98,13 @@ export function tick(s: GameState, seconds: number): GameState {
   // Research: a single slot works through the queue front-to-back.
   let remaining = seconds;
   while (s.researchQueue.length > 0 && remaining > 0) {
-    const node = TECH_BY_ID[s.researchQueue[0]];
+    const node = techById(mode)[s.researchQueue[0]];
     if (!node || s.unlockedTech.includes(s.researchQueue[0])) {
       s.researchQueue.shift();
       s.researchProgress = 0;
       continue;
     }
-    const needed = researchTime(node, mode) - s.researchProgress;
+    const needed = node.researchTimeSeconds - s.researchProgress;
     if (remaining < needed) {
       s.researchProgress += remaining;
       break;

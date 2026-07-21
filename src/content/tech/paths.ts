@@ -1,7 +1,7 @@
 import type { PathSpec } from './specs';
 
-// The 51 small +1% nodes of the 100-node tree, as chains along major->major
-// edges: 8 tech, 15 magic, 14 north spine, 14 south spine. Names become node
+// The 51 authored small +1% nodes, as chains along major->major edges:
+// 8 tech, 15 magic, 14 spirit spine, 14 matter spine. Names become node
 // ids (slugified), so keep them unique tree-wide. Every small node gives
 // +1% gather and +1% craft (+2% each on the magitech spines) — effects are
 // fixed by branch in index.ts. Costs use resources the player is guaranteed
@@ -24,7 +24,7 @@ export const PATHS: PathSpec[] = [
   { from: 'mechanisms', to: 'fine_machinery', branch: 'tech', cost: { gear: 8, glass: 5 }, time: 4800, names: ['Fine Tooling'] },
 
   // ---- Magic branch (left, 15 smalls) ----------------------------------------------
-  { from: 'basic_tools', to: 'rope_making', branch: 'magic', cost: { water: 5, wood: 3 }, time: 45, names: ['Wood Attunement', 'Water Attunement'] },
+  { from: 'basic_tools', to: 'rope_making', branch: 'magic', cost: { water: 5, wood: 3 }, time: 45, names: ['Wood Attunement', 'Water Attunement'], flip: true },
   { from: 'rope_making', to: 'sapcraft', branch: 'magic', cost: { wood: 16, water: 12 }, time: 300, names: ['Sap Flow'] },
   { from: 'rope_making', to: 'herbalism', branch: 'magic', cost: { water: 20, fiber: 12 }, time: 240, names: ['Verdant Whisper', 'Deep Roots'] },
   { from: 'rope_making', to: 'weaving', branch: 'magic', cost: { fiber: 16, water: 16 }, time: 300, names: ['Spring Song', 'Moon Tides'] },
@@ -37,14 +37,14 @@ export const PATHS: PathSpec[] = [
   { from: 'lunar_rites', to: 'divination', branch: 'magic', cost: { moon_dew: 6, moon_elixir: 2 }, time: 4800, names: ['Tea Leaves'] },
   { from: 'scrivenery', to: 'crystal_attunement', branch: 'magic', cost: { enchanted_ink: 4, grimoire: 1 }, time: 4800, names: ['Crystal Songs'] },
 
-  // ---- Magitech spine, north (14 smalls) --------------------------------------------
+  // ---- Magitech spirit spine (14 smalls) ---------------------------------------------
   { from: 'basic_tools', to: 'spirit_pistons', branch: 'magitech', cost: { wood: 12, water: 8 }, time: 60, names: ['Runic Saws', 'Spirit Valves'] },
   { from: 'spirit_pistons', to: 'rune_engineering', branch: 'magitech', cost: { stone_brick: 12, rope: 6 }, time: 900, names: ['Etched Cylinders', 'Mana Gaskets', 'Rune Benches'] },
   { from: 'rune_engineering', to: 'voltite_arcana', branch: 'magitech', cost: { copper_wire: 20, rune_plate: 2 }, time: 5400, names: ['Charged Etchings', 'Storm Watching', 'Copper Runes'] },
   { from: 'voltite_arcana', to: 'aetherworks', branch: 'magitech', cost: { mana_battery: 1, mana_dust: 16 }, time: 10800, names: ['Lift Theory', 'Aether Sails', 'Sky Trials'] },
   { from: 'aetherworks', to: 'wonders_of_spirit', branch: 'magitech', cost: { ley_thread: 6, mana_dust: 20 }, time: 21600, names: ['Horizon Charts', 'High Altars', 'Spirit Beacons'] },
 
-  // ---- Magitech spine, south (14 smalls) --------------------------------------------
+  // ---- Magitech matter spine (14 smalls) ---------------------------------------------
   { from: 'basic_tools', to: 'arcane_engine', branch: 'magitech', cost: { wood: 12, water: 12 }, time: 60, names: ['Mana Lathe', 'Singing Gears'] },
   { from: 'arcane_engine', to: 'golemcraft', branch: 'magitech', cost: { plank: 24, rope: 8 }, time: 1800, names: ['Clay Effigies', 'Binding Words', 'Waking Rites'] },
   { from: 'golemcraft', to: 'runic_industry', branch: 'magitech', cost: { steel: 8, rune_stone: 2 }, time: 5400, names: ['Golem Foremen', 'Rune Stencils', 'Work Chants'] },

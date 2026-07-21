@@ -4,7 +4,7 @@
   import SearchBox from './SearchBox.svelte';
   import { CATEGORY_ORDER, RECIPES } from '../content/recipes';
   import { RESOURCE_BY_ID } from '../content/resources';
-  import { TECH } from '../content/tech';
+  import { techTree } from '../content/tech';
   import { CRAFTER } from '../content/workers';
   import {
     assignAllCrafters,
@@ -24,8 +24,10 @@
   import type { Recipe } from '../engine/types';
 
   // The tech node whose research unlocks each recipe (for the locked hint).
+  // Unlock effects live on majors, which are identical in both mode trees, so
+  // the village tree serves as the lookup for either mode.
   const unlockedBy = new Map(
-    TECH.flatMap((t) =>
+    techTree('main').flatMap((t) =>
       t.effects.filter((e) => e.kind === 'unlockRecipe').map((e) => [e.id, t] as const),
     ),
   );

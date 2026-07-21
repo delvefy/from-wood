@@ -1,7 +1,7 @@
 import { get } from 'svelte/store';
 import { CATEGORY_ORDER, RECIPES, RECIPE_BY_ID } from '../content/recipes';
 import { RESOURCES, RESOURCE_BY_ID } from '../content/resources';
-import { techCost, TECH_BY_ID } from '../content/tech';
+import { techById } from '../content/tech';
 import { CRAFTER, GATHERER } from '../content/workers';
 import { getAccount } from './account';
 import { gameMode } from './mode';
@@ -147,16 +147,16 @@ export function hireCrafter(): void {
 // ---- Research queue ------------------------------------------------------------
 
 // Research costs resources, paid up-front when the node is queued, and locks
-// in: there is no cancel or refund. Prices are mode-dependent (tournaments
-// run a much cheaper curve).
+// in: there is no cancel or refund. Prices are mode-dependent (each mode has
+// its own tree with costs baked in).
 export function queueResearch(techId: TechId): void {
   game.update((s) => {
-    const node = TECH_BY_ID[techId];
+    const node = techById(get(gameMode))[techId];
     if (!node || s.unlockedTech.includes(techId) || s.researchQueue.includes(techId)) return s;
     const satisfied = node.requires.every(
       (r) => s.unlockedTech.includes(r) || s.researchQueue.includes(r),
     );
-    const cost = techCost(node, get(gameMode));
+    const cost = node.cost;
     if (!satisfied || !canAfford(s, cost)) return s;
     spendInputs(s, cost);
     return { ...s, researchQueue: [...s.researchQueue, techId] };

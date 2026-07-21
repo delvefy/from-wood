@@ -48,8 +48,8 @@ export type TechEffect =
   | { kind: 'gatherEfficiency'; resource: ResourceId | 'all'; percent: number }
   | { kind: 'craftEfficiency'; percent: number };
 
-// Skill-tree branches: magic grows left, tech grows right, magitech runs along
-// the vertical spine and requires nodes from both sides.
+// Skill-tree branches: magic rises up-left, tech up-right, magitech sits only
+// at the top of the triangle and requires nodes from both sides.
 export type TechBranch = 'magic' | 'tech' | 'magitech';
 
 export interface TechNode {

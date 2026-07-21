@@ -1,6 +1,6 @@
 import { get } from 'svelte/store';
 import { RESOURCES } from '../content/resources';
-import { techCost, TECH } from '../content/tech';
+import { techTree } from '../content/tech';
 import { CRAFTER, GATHERER } from '../content/workers';
 import { getAccount } from './account';
 import { gameMode, type GameMode } from './mode';
@@ -12,15 +12,15 @@ const PRICE: Record<string, number> = Object.fromEntries(
   RESOURCES.map((r) => [r.id, r.baseSellPrice]),
 );
 
-// Sell value of each tech node's resource cost — per mode, since tournament
-// research runs a much cheaper price curve than the village.
+// Sell value of each tech node's resource cost — per mode, since each mode
+// has its own tree (tournament runs a much cheaper price curve).
 const TECH_VALUE: Record<GameMode, Record<string, number>> = Object.fromEntries(
   (['main', 'tournament'] as GameMode[]).map((mode) => [
     mode,
     Object.fromEntries(
-      TECH.map((t) => [
+      techTree(mode).map((t) => [
         t.id,
-        Object.entries(techCost(t, mode)).reduce((sum, [id, n]) => sum + n * (PRICE[id] ?? 0), 0),
+        Object.entries(t.cost).reduce((sum, [id, n]) => sum + n * (PRICE[id] ?? 0), 0),
       ]),
     ),
   ]),

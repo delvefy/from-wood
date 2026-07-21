@@ -15,13 +15,18 @@
 // cost/time curves can be tuned against a target (~48h tournament).
 import { RECIPES, RECIPE_BY_ID } from '../src/content/recipes';
 import { RESOURCES, RESOURCE_BY_ID } from '../src/content/resources';
-import { researchTime, techCost, TECH, TECH_BY_ID } from '../src/content/tech';
+import { techTree } from '../src/content/tech';
 import { computeMultipliers, harvestMultiplier } from '../src/engine/multipliers';
 import type { GameMode } from '../src/engine/mode';
 
 const GATHERERS = Number(process.argv[2] ?? 100);
 const CRAFTERS = Number(process.argv[3] ?? 10);
 const MODE = (process.argv[4] ?? 'tournament') as GameMode;
+
+// Each mode has its own tree (100-node tournament, 1000-node village) with
+// costs and durations baked into the nodes.
+const TECH = techTree(MODE);
+const TECH_BY_ID = Object.fromEntries(TECH.map((n) => [n.id, n]));
 const DT = MODE === 'main' ? 30 : 10; // seconds per step; replan every step
 const MAX_SIM_SECONDS = 400 * 86_400;
 
@@ -138,12 +143,12 @@ function plan(): void {
   const remaining = TECH.filter((n) => !researched.has(n.id) && !queue.includes(n.id));
   const frontier = remaining
     .filter((n) => n.requires.every((r) => researched.has(r) || queue.includes(r)))
-    .sort((a, b) => researchTime(a, MODE) - researchTime(b, MODE))
+    .sort((a, b) => a.researchTimeSeconds - b.researchTimeSeconds)
     .slice(0, 6);
   const sumCosts = (nodes: typeof remaining) => {
     const demand: Record<string, number> = {};
     for (const node of nodes) {
-      for (const [id, n] of Object.entries(techCost(node, MODE))) {
+      for (const [id, n] of Object.entries(node.cost)) {
         demand[id] = (demand[id] ?? 0) + n;
       }
     }
@@ -190,11 +195,11 @@ function tryQueue(): void {
         !researched.has(n.id) &&
         !queue.includes(n.id) &&
         n.requires.every((r) => researched.has(r) || queue.includes(r)) &&
-        Object.entries(techCost(n, MODE)).every(([id, need]) => (stock[id] ?? 0) >= need),
-    ).sort((a, b) => researchTime(a, MODE) - researchTime(b, MODE));
+        Object.entries(n.cost).every(([id, need]) => (stock[id] ?? 0) >= need),
+    ).sort((a, b) => a.researchTimeSeconds - b.researchTimeSeconds);
     if (candidates.length === 0) return;
     const node = candidates[0];
-    for (const [id, n] of Object.entries(techCost(node, MODE))) stock[id] = (stock[id] ?? 0) - n;
+    for (const [id, n] of Object.entries(node.cost)) stock[id] = (stock[id] ?? 0) - n;
     queue.push(node.id);
   }
 }
@@ -225,7 +230,7 @@ while (researched.size < TECH.length && t < MAX_SIM_SECONDS) {
   let remaining = DT;
   while (queue.length > 0 && remaining > 0) {
     const node = TECH_BY_ID[queue[0]];
-    const needed = researchTime(node, MODE) - researchProgress;
+    const needed = node.researchTimeSeconds - researchProgress;
     if (remaining < needed) {
       researchProgress += remaining;
       remaining = 0;
@@ -280,7 +285,7 @@ if (researched.size < TECH.length) {
     (n) => !researched.has(n.id) && n.requires.every((r) => researched.has(r)),
   );
   for (const n of frontier.slice(0, 8)) {
-    const gaps = Object.entries(techCost(n, MODE))
+    const gaps = Object.entries(n.cost)
       .map(([id, need]) => `${id} ${Math.floor(stock[id] ?? 0)}/${need}`)
       .join(', ');
     console.log(`  frontier ${n.id}: ${gaps}`);
@@ -292,7 +297,7 @@ if (researched.size < TECH.length) {
 } else {
   console.log(`mode=${MODE} gatherers=${GATHERERS} crafters=${CRAFTERS}`);
   console.log(`finished in ${(t / 3600).toFixed(1)}h (${(t / 86_400).toFixed(2)} days)`);
-  const busy = TECH.reduce((s, n) => s + researchTime(n, MODE), 0);
+  const busy = TECH.reduce((s, n) => s + n.researchTimeSeconds, 0);
   console.log(`research busy ${(busy / 3600).toFixed(1)}h, slot idle (waiting for materials) ${(researchIdle / 3600).toFixed(1)}h`);
   const last = nodeDone.slice(-5).map((d) => `${d.id}@${(d.t / 3600).toFixed(1)}h`);
   console.log(`last nodes: ${last.join(', ')}`);

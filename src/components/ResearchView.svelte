@@ -339,10 +339,12 @@
         {#if lod}
           {#each visibleNodes as node (node.id)}
             {@const st = status(node)}
-            <circle
-              cx={node.x}
-              cy={node.y}
-              r={node.major ? dotR * 1.6 : dotR}
+            {@const r = node.major ? dotR * 1.6 : dotR}
+            <rect
+              x={node.x - r}
+              y={node.y - r}
+              width={r * 2}
+              height={r * 2}
               class="dot {node.branch} {st}"
               class:ready={st === 'available' && canAfford($game, nodeCost(node))}
             />
@@ -610,9 +612,14 @@
     fill: var(--accent);
   }
 
-  .dot.active,
-  .dot.queued {
+  .dot.active {
     fill: var(--science);
+  }
+
+  /* Grey, not science-blue: --science equals --tech, so queued dots were
+     indistinguishable from owned tech territory when zoomed out. */
+  .dot.queued {
+    fill: var(--muted);
   }
 
   .dot.owned.magic {
@@ -740,7 +747,7 @@
   }
 
   .node.queued {
-    border-color: var(--science);
+    border-color: var(--muted);
     border-style: dashed;
   }
 

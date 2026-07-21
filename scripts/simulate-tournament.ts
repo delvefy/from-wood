@@ -2,7 +2,7 @@
 // `node --import tsx scripts/simulate-tournament.ts [gatherers] [crafters] [mode]`).
 //
 // Models a dedicated player — replanning every tick, never idle — using the
-// same mechanics as engine/tick.ts: 30s gather cycles, per-recipe craft
+// same mechanics as engine/tick.ts: 20s gather cycles, per-recipe craft
 // cycles limited by stock, one research slot, additive efficiency
 // multipliers, costs paid when a node is queued. The bot:
 // - demands the summed techCost of every not-yet-queued node, expanded
@@ -201,6 +201,7 @@ function tryQueue(): void {
     const node = candidates[0];
     for (const [id, n] of Object.entries(node.cost)) stock[id] = (stock[id] ?? 0) - n;
     queue.push(node.id);
+    lastQueuedAt = t;
   }
 }
 
@@ -208,6 +209,7 @@ function tryQueue(): void {
 let t = 0;
 let researchIdle = 0;
 let lastLogHour = -1;
+let lastQueuedAt = 0; // when the final node's cost was paid = all materials collected
 const nodeDone: { id: string; t: number }[] = [];
 
 while (researched.size < TECH.length && t < MAX_SIM_SECONDS) {
@@ -299,6 +301,7 @@ if (researched.size < TECH.length) {
   console.log(`finished in ${(t / 3600).toFixed(1)}h (${(t / 86_400).toFixed(2)} days)`);
   const busy = TECH.reduce((s, n) => s + n.researchTimeSeconds, 0);
   console.log(`research busy ${(busy / 3600).toFixed(1)}h, slot idle (waiting for materials) ${(researchIdle / 3600).toFixed(1)}h`);
+  console.log(`all materials collected (last node queued) at ${(lastQueuedAt / 86_400).toFixed(2)} days`);
   const last = nodeDone.slice(-5).map((d) => `${d.id}@${(d.t / 3600).toFixed(1)}h`);
   console.log(`last nodes: ${last.join(', ')}`);
 }

@@ -11,7 +11,7 @@ import type { ResourceDef } from '../engine/types';
 
 // helpers keep the 200+ entry catalog readable: one line per entry.
 // Every raw takes the same time to gather; progression comes from prices, not speed.
-const GATHER_TIME_SECONDS = 30;
+const GATHER_TIME_SECONDS = 20;
 
 const raw = (
   id: string,

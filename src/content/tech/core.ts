@@ -9,13 +9,13 @@ export const CORE: TechNode[] = [
   {
     id: 'basic_tools',
     name: 'Basic Tools',
-    description: 'Gather +2%, craft output +2%',
+    description: 'Gather +1%, craft output +1%',
     cost: { wood: 10, water: 10 },
     researchTimeSeconds: 30,
     requires: [],
     effects: [
-      { kind: 'gatherEfficiency', resource: 'all', percent: 2 },
-      { kind: 'craftEfficiency', percent: 2 },
+      { kind: 'gatherEfficiency', resource: 'all', percent: 1 },
+      { kind: 'craftEfficiency', percent: 1 },
     ],
     branch: 'magitech',
     x: 0,

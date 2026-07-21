@@ -33,8 +33,8 @@ export type { MajorSpec, PathSpec } from './specs';
 //
 // Design rules:
 // - No speed effects anywhere. Only efficiency, always to BOTH buckets:
-//   every magic/tech node gives +1% gather and +1% craft output, every
-//   magitech node +2% of each (majors, smalls and fillers alike).
+//   every node gives +1% gather and +1% craft output, regardless of branch
+//   (majors, smalls and fillers alike).
 // - `major` nodes unlock content (resources/recipes) and render larger.
 // - Coordinates are world px; keep ~150px between connected nodes.
 
@@ -49,16 +49,17 @@ const slug = (name: string) =>
 // node's resource mix, and the authored 30s..86400s times fix how eras relate.
 // The build below rescales both onto per-mode targets:
 // - Time: each tree's researchTimeSeconds is baked so the whole tree sums to
-//   RESEARCH_TOTAL_SECONDS of continuous research. The village targets ~100
-//   days of TOTAL play (research + gathering the materials): the research
-//   queue is 50 days, and with a full crew (~100 gatherers / 10 crafters,
-//   `npm run simulate -- 100 10 main`) material stalls add roughly as much
-//   again. The tournament research queue is 1 day (~48h wall clock).
+//   RESEARCH_TOTAL_SECONDS of continuous research. The village research queue
+//   is 100 days, and the cost curve is tuned so gathering every node's
+//   materials with a full crew (~100 gatherers / 10 crafters,
+//   `npm run simulate -- 100 10 main`) ALSO takes ~100 days — the two run in
+//   parallel, so materials arrive just in time and the research slot rarely
+//   idles. The tournament research queue is 1 day (~48h wall clock).
 // - Cost: each node's cost value (amounts × base sell price) follows a power
 //   curve of its authored time. Each mode has its own curve, baked into its
 //   own nodes.
 export const RESEARCH_TOTAL_SECONDS: Record<GameMode, number> = {
-  main: 50 * 86_400, // half of the ~100-day village target; gathering fills the rest
+  main: 100 * 86_400, // gathering runs in parallel and is tuned to the same ~100 days
   tournament: 24 * 3_600, // 1 day
 };
 
@@ -69,12 +70,12 @@ export const RESEARCH_TOTAL_SECONDS: Record<GameMode, number> = {
 // worker math.
 //
 // The village curve shares the tournament's cheap start (so a fresh village
-// gets moving within its first few gather cycles) and ends ~70× the
-// tournament's final node — costs spread smoothly between the two instead of
-// the old flat ×100 on every node. The end value is tuned with the sim so
-// material stalls add ~50 days on top of the 50-day research queue.
-const TOURNAMENT_COST_CURVE = { rootValue: 2, endValue: 900_000 }; // 1 wood + 1 water at the root
-const VILLAGE_COST_CURVE = { rootValue: 2, endValue: 71_000_000 };
+// gets moving within its first few gather cycles) and ends ~50× the
+// tournament's final node. The end value is tuned with the sim to the highest
+// cost where the 100-day research queue never stalls on materials — the crew
+// spends the full ~100 days collecting, and everything arrives just in time.
+const TOURNAMENT_COST_CURVE = { rootValue: 2, endValue: 740_000 }; // 1 wood + 1 water at the root
+const VILLAGE_COST_CURVE = { rootValue: 2, endValue: 45_000_000 };
 
 const AUTHORED_TIME = { root: 30, end: 86_400 };
 
@@ -122,10 +123,10 @@ function scaledCost(mix: Record<string, number>, target: number): Record<string,
   return out;
 }
 
-// Efficiency is uniform and branch-keyed: magic/tech nodes give +1% to
-// gathering AND crafting, magitech nodes +2% to both.
-function branchBonus(branch: TechBranch): { percent: number; effects: TechEffect[] } {
-  const percent = branch === 'magitech' ? 2 : 1;
+// Efficiency is uniform everywhere: every node, in every branch, gives +1%
+// to gathering AND +1% to crafting — no exceptions.
+function branchBonus(_branch: TechBranch): { percent: number; effects: TechEffect[] } {
+  const percent = 1;
   return {
     percent,
     effects: [
@@ -183,8 +184,8 @@ for (const p of PATHS) {
   (rewire[p.to] ??= {})[p.from] = prev;
 }
 
-// Majors: batch unlocks plus the same branch bonus every node carries
-// (+1% gather & craft, +2% each on the spines).
+// Majors: batch unlocks plus the same flat bonus every node carries
+// (+1% gather & craft).
 const majorNodes: TechNode[] = MAJORS.map((m) => ({
   id: m.id,
   name: m.name,

@@ -5,8 +5,8 @@ import type { TechBranch } from '../../engine/types';
 // `from` is rewired to the last node of the chain. Coordinates are
 // interpolated between the anchors with a slight alternating perpendicular
 // wiggle. Costs only set the resource mix — the global cost curve (index.ts)
-// scales the amounts. Effects are fixed by branch: magic/tech nodes give
-// +1% gather AND +1% craft, magitech nodes +2% of each.
+// scales the amounts. Effects are uniform: every node gives +1% gather AND
+// +1% craft, regardless of branch.
 export interface PathSpec {
   from: string; // anchor node id (core node or major)
   to: string; // major whose `requires` gets rewired through this path
@@ -19,7 +19,7 @@ export interface PathSpec {
 }
 
 // Era unlock majors: each unlocks a themed batch of recipes (plus any new raw
-// resource) and grants the standard +2% major bonus for its branch.
+// resource) and grants the standard +1% gather / +1% craft bonus.
 export interface MajorSpec {
   id: string;
   name: string;

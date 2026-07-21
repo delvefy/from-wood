@@ -1,7 +1,7 @@
 import type { TechBranch } from '../../engine/types';
 
 // Name pools for the generated village-only filler smalls. The village tree
-// splices ~900 of these into the edges of the authored 100-node tree, so each
+// splices ~400 of these into the edges of the authored 100-node tree, so each
 // branch needs a deep pool of unique names: 24 adjectives x 24 nouns = 576
 // combinations per branch, assigned sequentially (adjective cycles fastest).
 // Word choices deliberately avoid recreating any authored small-node name

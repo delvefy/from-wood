@@ -23,7 +23,7 @@ const GATHERERS = Number(process.argv[2] ?? 100);
 const CRAFTERS = Number(process.argv[3] ?? 10);
 const MODE = (process.argv[4] ?? 'tournament') as GameMode;
 
-// Each mode has its own tree (100-node tournament, 1000-node village) with
+// Each mode has its own tree (100-node tournament, 500-node village) with
 // costs and durations baked into the nodes.
 const TECH = techTree(MODE);
 const TECH_BY_ID = Object.fromEntries(TECH.map((n) => [n.id, n]));

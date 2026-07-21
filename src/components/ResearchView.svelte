@@ -13,7 +13,7 @@
   import { focusTech, openMaterial } from '../util/nav';
   import { settings } from '../util/settings';
 
-  // Each mode renders its own tree: the 1000-node village triangle or the
+  // Each mode renders its own tree: the 500-node village triangle or the
   // 100-node tournament one. Derived so a mode switch swaps the canvas live.
   const tree = $derived(techTree($gameMode));
   const byId = $derived(techById($gameMode));
@@ -40,7 +40,7 @@
     return null;
   }
 
-  const MIN_ZOOM = 0.04; // far enough out to frame the 1000-node village triangle
+  const MIN_ZOOM = 0.04; // far enough out to frame the 500-node village triangle
   const MAX_ZOOM = 2.5;
 
   const savedCam = loadCam();
@@ -176,7 +176,7 @@
     ),
   );
 
-  // Cull to the camera viewport: the village tree holds 1000 nodes and edges,
+  // Cull to the camera viewport: the village tree holds 500 nodes and edges,
   // and mounting them all means every per-second state update re-diffs the
   // whole forest. Padded in world units so things slide in before their box
   // enters; covers the node's half-size plus its glow.

@@ -10,15 +10,17 @@ export type { MajorSpec, PathSpec } from './specs';
 
 // Two skill trees are generated from ONE authored source (core + majors +
 // paths), laid out as a big point-down triangle on an infinite canvas: the
-// root at the bottom vertex (0, 0), the Magic arm rising up-left, the Tech
-// arm rising up-right, and Magitech ONLY at the top — two spine columns
-// (spirit x=-240, matter x=+240) climbing the center to the apex wonders.
-// Spine majors require one major from each side.
+// root at the bottom vertex (0, 0), the Magic wedge rising up-LEFT, the Tech
+// wedge rising up-RIGHT (radial fans — radius grows with graph depth, so both
+// arms top out around the same height), and Magitech ONLY in the center — two
+// spine columns (spirit x=-240, matter x=+240) climbing between the wedges
+// and cresting above them, so the wonders crown the triangle's top. Spine
+// majors require one major from each side.
 //
 // - TOURNAMENT: the authored 100 nodes as-is — root, 48 majors, 51 small
 //   path nodes — on the compact authored canvas.
-// - VILLAGE (main): a 1000-node superset. The same 100 authored nodes keep
-//   their ids on a canvas scaled up ~5x, and 900 generated filler smalls
+// - VILLAGE (main): a 500-node superset. The same 100 authored nodes keep
+//   their ids on a scaled-up canvas, and 400 generated filler smalls
 //   (named from pools in fillers.ts) are spliced into every edge, rewiring
 //   `requires` through the chain.
 //
@@ -46,13 +48,16 @@ const slug = (name: string) =>
 // node's resource mix, and the authored 30s..86400s times fix how eras relate.
 // The build below rescales both onto per-mode targets:
 // - Time: each tree's researchTimeSeconds is baked so the whole tree sums to
-//   RESEARCH_TOTAL_SECONDS of continuous research (100 days for the 1000-node
-//   village, 1 day for the 100-node tournament).
+//   RESEARCH_TOTAL_SECONDS of continuous research. The village targets ~100
+//   days of TOTAL play (research + gathering the materials): the research
+//   queue is 50 days, and with a full crew (~100 gatherers / 10 crafters,
+//   `npm run simulate -- 100 10 main`) material stalls add roughly as much
+//   again. The tournament research queue is 1 day (~48h wall clock).
 // - Cost: each node's cost value (amounts × base sell price) follows a power
 //   curve of its authored time. Each mode has its own curve, baked into its
 //   own nodes.
 export const RESEARCH_TOTAL_SECONDS: Record<GameMode, number> = {
-  main: 100 * 86_400, // 100 days of continuous research
+  main: 50 * 86_400, // half of the ~100-day village target; gathering fills the rest
   tournament: 24 * 3_600, // 1 day
 };
 
@@ -63,11 +68,12 @@ export const RESEARCH_TOTAL_SECONDS: Record<GameMode, number> = {
 // worker math.
 //
 // The village curve shares the tournament's cheap start (so a fresh village
-// gets moving within its first few gather cycles) and ends 100× the
+// gets moving within its first few gather cycles) and ends ~70× the
 // tournament's final node — costs spread smoothly between the two instead of
-// the old flat ×100 on every node.
+// the old flat ×100 on every node. The end value is tuned with the sim so
+// material stalls add ~50 days on top of the 50-day research queue.
 const TOURNAMENT_COST_CURVE = { rootValue: 2, endValue: 900_000 }; // 1 wood + 1 water at the root
-const VILLAGE_COST_CURVE = { rootValue: 2, endValue: 90_000_000 };
+const VILLAGE_COST_CURVE = { rootValue: 2, endValue: 64_000_000 };
 
 const AUTHORED_TIME = { root: 30, end: 86_400 };
 
@@ -203,9 +209,8 @@ const AUTHORED_BY_ID: Record<string, TechNode> = Object.fromEntries(
 
 // ---- Tournament tree --------------------------------------------------------
 // The authored 100 nodes on the authored canvas. Times normalize the queue to
-// one day; the round() at 100-day scale BEFORE compressing replicates the
-// pre-split bake, keeping every tournament duration and cost bit-identical to
-// the old shared tree.
+// one day (rounded at village scale first, then compressed, so the two trees
+// keep exactly proportional durations on shared ids).
 const AUTHORED_TOTAL_SECONDS = AUTHORED.reduce((sum, n) => sum + n.researchTimeSeconds, 0);
 const PRE_SPLIT_TIME_SCALE = RESEARCH_TOTAL_SECONDS.main / AUTHORED_TOTAL_SECONDS;
 const TOURNAMENT_COMPRESSION = RESEARCH_TOTAL_SECONDS.tournament / RESEARCH_TOTAL_SECONDS.main;
@@ -220,7 +225,7 @@ const TOURNAMENT_TREE: TechNode[] = AUTHORED.map((n) => ({
 // ---- Village tree -----------------------------------------------------------
 // The same 100 nodes on a scaled-up canvas, plus generated filler smalls
 // spliced into every edge until the tree hits exactly VILLAGE_NODE_TARGET.
-const VILLAGE_NODE_TARGET = 1000;
+const VILLAGE_NODE_TARGET = 500;
 const VILLAGE_SPACING = 150; // px between chain neighbours once fillers are in
 
 const edges = AUTHORED.flatMap((n) =>
@@ -291,12 +296,24 @@ edges.forEach((edge, idx) => {
   // mix may charge materials that another of its parents unlocks.
   const tFrom = AUTHORED_BY_ID[edge.from].researchTimeSeconds;
   const tTo = AUTHORED_BY_ID[edge.to].researchTimeSeconds;
+  // Fillers on same-branch edges inherit that branch. On cross-branch edges
+  // (the arm -> spine links) the branch follows POSITION instead — magic on
+  // the left wedge, tech on the right, magitech only in the center column —
+  // so the long cross-links don't streak magitech through the arm wedges.
+  const branchAt = (x: number): TechBranch =>
+    parent.branch === child.branch
+      ? child.branch
+      : x < -300
+        ? 'magic'
+        : x > 300
+          ? 'tech'
+          : 'magitech';
   let prev = edge.from;
   for (let i = 0; i < count; i++) {
-    const branch = child.branch;
+    const t = (i + 1) / (count + 1);
+    const branch = branchAt(parent.x + dx * t);
     const name = fillerName(branch, fillerCounters[branch]++);
     const id = slug(name);
-    const t = (i + 1) / (count + 1);
     const offset = i % 2 === 0 ? 26 : -26;
     villageFillers.push({
       id,

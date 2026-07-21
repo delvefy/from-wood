@@ -2,7 +2,7 @@
 // Catches the errors that otherwise surface as silently broken items three
 // tiers deep: bad IDs, recipes over the 3-input cap, content unreachable from
 // the tech tree, and resources nothing produces. Both mode trees are checked:
-// the 1000-node village and the 100-node tournament.
+// the 500-node village and the 100-node tournament.
 import { RECIPES } from '../src/content/recipes';
 import { RESOURCES, RESOURCE_BY_ID } from '../src/content/resources';
 import { techTree } from '../src/content/tech';
@@ -11,7 +11,7 @@ const errors: string[] = [];
 const warnings: string[] = [];
 
 const TREES = [
-  { label: 'village', expected: 1000, nodes: techTree('main') },
+  { label: 'village', expected: 500, nodes: techTree('main') },
   { label: 'tournament', expected: 100, nodes: techTree('tournament') },
 ];
 

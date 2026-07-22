@@ -6,8 +6,6 @@
   import {
     hireCrafter,
     hireWorker,
-    idleCrafters,
-    idleWorkers,
     nextHireCost,
     sellEverything,
     sellResource,
@@ -28,6 +26,7 @@
   import { collapsed, isCollapsed, toggleCollapsed } from '../util/collapse';
   import { formatCredits, formatNumber } from '../util/format';
   import { searchFilters } from '../util/nav';
+  import { sellTicks, toggleSellTick } from '../util/sellTicks';
 
   // Crafted items sell under their recipe's category; gathered ones share one group.
   const categoryByOutput = new Map<string, string>();
@@ -55,25 +54,21 @@
 
   const priceFactor = $derived(sellPriceFactor($account));
 
-  // Sell percentage sliders: one global, one per material (default 100%).
-  let sellPct = $state(100);
-  const rowPct = $state<Record<string, number>>({});
-
-  // Units a given percentage sells — mirrors sellEverything's per-stack floor
-  // so the previewed credits always equal what the sale actually pays.
-  function unitsAt(id: string, pct: number): number {
-    return Math.floor(Math.floor($game.resources[id] ?? 0) * (pct / 100));
-  }
-
-  const sellAllValue = $derived(
-    RESOURCES.reduce(
+  // Credits a sale pays out: `fraction` of every unlocked stack, optionally
+  // limited to the ticked ids — mirrors sellEverything exactly.
+  function saleValue(fraction: number, only?: ReadonlySet<string>): number {
+    return RESOURCES.reduce(
       (sum, r) =>
-        $game.unlockedResources.includes(r.id)
-          ? sum + unitsAt(r.id, sellPct) * r.baseSellPrice * priceFactor
+        $game.unlockedResources.includes(r.id) && (!only || only.has(r.id))
+          ? sum + ($game.resources[r.id] ?? 0) * fraction * r.baseSellPrice * priceFactor
           : sum,
       0,
-    ),
-  );
+    );
+  }
+
+  const SELL_PRESETS = [25, 50, 100];
+  const ticked = $derived(new Set($sellTicks));
+  const customValue = $derived(saleValue(1, ticked));
 
   // `owned` drives the hire cost (only paid hires scale it); `total` includes
   // base workers (premium packs + tournament rewards) and is what the player sees.
@@ -82,7 +77,6 @@
       config: GATHERER,
       owned: $game.workers,
       total: totalGatherers($game, $account),
-      idle: idleWorkers($game),
       hire: hireWorker,
       hint: 'Assign gatherers to resources in the Gather tab.',
     },
@@ -90,7 +84,6 @@
       config: CRAFTER,
       owned: $game.crafters,
       total: totalCrafters($game, $account),
-      idle: idleCrafters($game),
       hire: hireCrafter,
       hint: 'Assign crafters to recipes in the Craft tab.',
     },
@@ -122,20 +115,28 @@
 <div class="balance">
   <div class="balance-top">
     <span>Credits: <strong>{formatCredits($game.credits)}</strong></span>
-    <button class="sell-all" disabled={sellAllValue <= 0} onclick={() => sellEverything(sellPct / 100)}>
-      Sell {sellPct}%{sellAllValue > 0 ? ` +${formatCredits(sellAllValue)}` : ''}
-    </button>
   </div>
-  <div class="pct-row">
-    <input
-      type="range"
-      min="0"
-      max="100"
-      step="5"
-      bind:value={sellPct}
-      aria-label="Percentage of all inventory to sell"
-    />
-    <span class="pct muted">{sellPct}%</span>
+  <div class="sell-btns">
+    <span class="muted">Sell</span>
+    {#each SELL_PRESETS as pct (pct)}
+      {@const value = saleValue(pct / 100)}
+      <button
+        class="sell-all"
+        disabled={value <= 0}
+        aria-label="Sell {pct}% of all inventory"
+        onclick={() => sellEverything(pct / 100)}
+      >
+        {pct}%{value > 0 ? ` +${formatCredits(value)}` : ''}
+      </button>
+    {/each}
+    <button
+      class="sell-all"
+      disabled={customValue <= 0}
+      aria-label="Sell all of the ticked items"
+      onclick={() => sellEverything(1, ticked)}
+    >
+      Custom{customValue > 0 ? ` +${formatCredits(customValue)}` : ''}
+    </button>
   </div>
 </div>
 
@@ -151,28 +152,21 @@
     </button>
     {#if query || !isCollapsed($collapsed, 'market', group.id)}
       {#each group.items as r (r.id)}
-        {@const pct = rowPct[r.id] ?? 100}
-        {@const units = unitsAt(r.id, pct)}
-        {@const value = units * r.baseSellPrice * priceFactor}
+        {@const have = $game.resources[r.id] ?? 0}
+        {@const value = have * r.baseSellPrice * priceFactor}
         <div class="row sell">
+          <input
+            type="checkbox"
+            checked={ticked.has(r.id)}
+            aria-label="Include {r.name} in custom sell"
+            onchange={() => toggleSellTick(r.id)}
+          />
           <span class="what"><Icon id={r.id} /> {r.name}</span>
-          <span class="have">{formatNumber($game.resources[r.id] ?? 0)}</span>
+          <span class="have">{formatNumber(have)}</span>
           <span class="price">{formatCredits(r.baseSellPrice * priceFactor)}/u</span>
-          <div class="sell-ctl">
-            <input
-              type="range"
-              min="0"
-              max="100"
-              step="5"
-              value={pct}
-              aria-label="Percentage of {r.name} to sell"
-              oninput={(e) => (rowPct[r.id] = +e.currentTarget.value)}
-            />
-            <span class="pct muted">{pct}%</span>
-            <button class="sell-btn" disabled={units < 1} onclick={() => sellResource(r.id, units)}>
-              Sell {units > 0 ? `${formatNumber(units)} +${formatCredits(value)}` : '—'}
-            </button>
-          </div>
+          <button class="sell-btn" disabled={value <= 0} onclick={() => sellResource(r.id, 'all')}>
+            Sell {value > 0 ? `+${formatCredits(value)}` : '—'}
+          </button>
         </div>
       {/each}
     {/if}
@@ -183,7 +177,7 @@
 {#each hireRows as row (row.config.name)}
   <div class="row worker">
     <span class="what">
-      <Icon id={row.config.icon} tint={false} /> {row.config.name}s <span class="muted">×{row.total} ({row.idle} idle)</span>
+      <Icon id={row.config.icon} tint={false} /> {row.config.name}s <span class="muted">×{row.total}</span>
     </span>
     <span class="desc muted">{row.config.description}</span>
     <button
@@ -248,35 +242,30 @@
     gap: 8px;
   }
 
+  .sell-btns {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
   .sell-all {
     background: var(--grad-primary);
     border: none;
     color: #fff;
     font-weight: 600;
-    padding: 0 14px;
+    padding: 0 10px;
+    font-size: 0.8rem;
     white-space: nowrap;
-  }
-
-  .pct-row,
-  .sell-ctl {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  input[type='range'] {
-    flex: 1;
-    min-width: 0;
-    min-height: 32px; /* comfortable touch target */
-    margin: 0;
-    accent-color: var(--gold);
-  }
-
-  .pct {
-    min-width: 4ch;
-    text-align: right;
-    font-size: 0.75rem;
     font-variant-numeric: tabular-nums;
+  }
+
+  input[type='checkbox'] {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    flex-shrink: 0;
+    accent-color: var(--gold);
   }
 
   .list {
@@ -315,8 +304,11 @@
 
   .what {
     flex: 1;
+    min-width: 0;
     font-weight: 600;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .have {
@@ -332,17 +324,8 @@
     white-space: nowrap;
   }
 
-  /* Name/stock/price on the first line, slider + sell on the second. */
-  .row.sell {
-    flex-wrap: wrap;
-  }
-
-  .sell-ctl {
-    flex-basis: 100%;
-  }
-
   .sell-btn {
-    min-width: 108px;
+    min-width: 96px;
     padding: 0 10px;
     font-size: 0.8rem;
     white-space: nowrap;

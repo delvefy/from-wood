@@ -586,30 +586,18 @@
     stroke-width: 3;
   }
 
+  /* Branch colors come from the --tree-* palette, which stays on the village
+     hues even in tournament mode — the arena theme's all-blue branch colors
+     made the tree's branches impossible to tell apart at any zoom level. */
   .edge.done.magic {
-    stroke: var(--magic);
-  }
-
-  .edge.done.tech {
-    stroke: var(--tech);
-  }
-
-  .edge.done.magitech {
-    stroke: var(--magitech);
-  }
-
-  /* Zoomed out, branch colors come from the --tree-* palette, which stays on
-     the village hues even in tournament mode — the arena theme's all-blue
-     branch colors made the map's regions impossible to tell apart. */
-  .edges.lod .edge.done.magic {
     stroke: var(--tree-magic);
   }
 
-  .edges.lod .edge.done.tech {
+  .edge.done.tech {
     stroke: var(--tree-tech);
   }
 
-  .edges.lod .edge.done.magitech {
+  .edge.done.magitech {
     stroke: var(--tree-magitech);
   }
 
@@ -688,15 +676,15 @@
   }
 
   .node.magic::before {
-    background: var(--magic);
+    background: var(--tree-magic);
   }
 
   .node.tech::before {
-    background: var(--tech);
+    background: var(--tree-tech);
   }
 
   .node.magitech::before {
-    background: var(--magitech);
+    background: var(--tree-magitech);
   }
 
   .node.locked {
@@ -845,18 +833,18 @@
 
   .legend.magic-l {
     left: 8px;
-    color: var(--magic);
+    color: var(--tree-magic);
   }
 
   .legend.magitech-l {
     left: 50%;
     transform: translateX(-50%);
-    color: var(--magitech);
+    color: var(--tree-magitech);
   }
 
   .legend.tech-l {
     right: 8px;
-    color: var(--tech);
+    color: var(--tree-tech);
   }
 
   .ready-jump {

@@ -13,9 +13,10 @@
   } from '../engine/actions';
   import { account } from '../engine/account';
   import { craftTimeFactor, totalCrafters } from '../engine/premium';
+  import { computeFlowRates, isInputStarved, netRate, secondsToDry } from '../engine/rates';
   import { game } from '../engine/state';
   import { collapsed, isCollapsed, toggleCollapsed } from '../util/collapse';
-  import { formatNumber } from '../util/format';
+  import { formatDuration, formatNumber } from '../util/format';
   import { holdRepeat } from '../util/holdRepeat';
   import { openMaterial, openTech, searchFilters } from '../util/nav';
   import { rawCost } from '../util/rawCost';
@@ -62,6 +63,20 @@
   );
   const anyUnlocked = $derived($game.unlockedRecipes.length > 0);
   const idle = $derived(idleCrafters($game));
+
+  // Global per-material flow (gatherers + all staffed recipes), driving the
+  // net-drain tint, "dry in" countdown, and starvation warning per card.
+  const rates = $derived(computeFlowRates($game, $account));
+
+  // Tooltip suffix for a staffed recipe's input: this card's own draw plus
+  // the material's economy-wide balance.
+  function flowLabel(id: string, drain: number): string {
+    const net = netRate(rates, id);
+    let text = ` · using ${formatNumber(drain)}/s here · net ${net < 0 ? '−' : '+'}${formatNumber(Math.abs(net))}/s`;
+    const dry = secondsToDry($game, rates, id);
+    if (Number.isFinite(dry)) text += ` · dry in ~${formatDuration(dry)}`;
+    return text;
+  }
 
   // Every recipe outputs exactly one item type; its icon stands in for the recipe.
   const outputId = (recipe: Recipe) => Object.keys(recipe.outputs)[0];
@@ -124,7 +139,11 @@
                 <div class="io">
                   {#each Object.entries(recipe.inputs) as [id, n] (id)}
                     {@const have = $game.resources[id] ?? 0}
-                    {@const label = `${RESOURCE_BY_ID[id]?.name ?? id} — need ${n}, have ${formatNumber(have)}`}
+                    {@const drain = (assigned * n) / duration}
+                    {@const draining = assigned > 0 && netRate(rates, id) < 0}
+                    {@const label =
+                      `${RESOURCE_BY_ID[id]?.name ?? id} — need ${n}, have ${formatNumber(have)}` +
+                      (assigned > 0 ? flowLabel(id, drain) : '')}
                     {#if $settings.materialLinks}
                       <button
                         class="item link"
@@ -134,10 +153,12 @@
                         onclick={() => openMaterial(id)}
                       >
                         <Icon {id} />{n}<small>/{formatNumber(have)}</small>
+                        {#if assigned > 0}<small class="use" class:drain={draining}>−{formatNumber(drain)}/s</small>{/if}
                       </button>
                     {:else}
                       <span class="item" class:short={have < n} title={label}>
                         <Icon {id} />{n}<small>/{formatNumber(have)}</small>
+                        {#if assigned > 0}<small class="use" class:drain={draining}>−{formatNumber(drain)}/s</small>{/if}
                       </span>
                     {/if}
                   {/each}
@@ -158,11 +179,25 @@
                 <div class="crew">
                   <Icon id={CRAFTER.icon} tint={false} /> <strong>{assigned}</strong>
                   {#if assigned > 0}
-                    <span class="muted rate">
+                    {@const starved = isInputStarved($game, rates, recipe)}
+                    {@const dryIn = Math.min(
+                      ...Object.keys(recipe.inputs).map((id) => secondsToDry($game, rates, id)),
+                    )}
+                    <span
+                      class="muted rate"
+                      class:starved
+                      title={starved ? 'Input-starved — crafting below this pace' : undefined}
+                    >
+                      {#if starved}⚠{/if}
                       {#each Object.entries(recipe.outputs) as [id, n] (id)}
                         +<Icon {id} />{formatNumber((assigned * n * $game.multipliers.craftOutput) / duration)}/s
                       {/each}
                     </span>
+                    {#if !starved && Number.isFinite(dryIn)}
+                      <span class="muted dry" title="Inputs empty at the current net drain">
+                        · dry in ~{formatDuration(dryIn)}
+                      </span>
+                    {/if}
                   {:else}
                     <span class="muted">· hold ❯ to assign · ⏱ {formatNumber(duration)}s</span>
                   {/if}
@@ -405,6 +440,16 @@
     white-space: nowrap;
   }
 
+  /* Full-pace rate shown while inputs can't keep up — flag it as optimistic. */
+  .rate.starved {
+    color: var(--gold);
+  }
+
+  .dry {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
   .head {
     display: flex;
     justify-content: space-between;
@@ -449,6 +494,17 @@
 
   .item small {
     color: var(--muted);
+  }
+
+  /* Per-second draw while staffed; amber when the material is a net drain. */
+  .item small.use {
+    margin-left: 3px;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .item small.use.drain {
+    color: var(--gold);
   }
 
   .item.short {

@@ -13,7 +13,7 @@
   } from '../engine/actions';
   import { account } from '../engine/account';
   import { craftTimeFactor, totalCrafters } from '../engine/premium';
-  import { computeFlowRates, isInputStarved, netRate, secondsToDry } from '../engine/rates';
+  import { computeFlowRates, netRate, secondsToDry } from '../engine/rates';
   import { game } from '../engine/state';
   import { collapsed, isCollapsed, toggleCollapsed } from '../util/collapse';
   import { formatDuration, formatNumber } from '../util/format';
@@ -78,6 +78,14 @@
     return text;
   }
 
+  // Raw-cost summary for the output chip's tooltip — the visible raw ≈ line
+  // went away when cards tightened to two rows.
+  function rawLabel(raw: [string, number][]): string {
+    if (!raw.length) return '';
+    const parts = raw.map(([id, n]) => `${formatNumber(Math.ceil(n))} ${RESOURCE_BY_ID[id]?.name ?? id}`);
+    return ` · raw ≈ ${parts.join(', ')}`;
+  }
+
   // Every recipe outputs exactly one item type; its icon stands in for the recipe.
   const outputId = (recipe: Recipe) => Object.keys(recipe.outputs)[0];
 
@@ -133,9 +141,15 @@
                   <span class="icon"><Icon id={outputId(recipe)} /></span>
                   <span class="name">{recipe.name}</span>
                   <span class="amount">{formatNumber($game.resources[outputId(recipe)] ?? 0)}</span>
+                  <span class="crew" class:idle={assigned <= 0}>
+                    <Icon id={CRAFTER.icon} tint={false} /><strong>{assigned}</strong>
+                  </span>
                 </div>
                 <!-- Icon-only chips keep the recipe to one row; the material
                      name lives in the tooltip and (with links on) the tap. -->
+                <!-- Unstaffed: the plain recipe ratio (2 🪵 → 1 🪧). Staffed: pure
+                     flow (−x/s → +x/s). Stock, net rate, and dry countdown live
+                     in the tooltip only. -->
                 <div class="io">
                   {#each Object.entries(recipe.inputs) as [id, n] (id)}
                     {@const have = $game.resources[id] ?? 0}
@@ -148,59 +162,29 @@
                       <button
                         class="item link"
                         class:short={have < n}
+                        class:drain={draining}
                         title={label}
                         aria-label={label}
                         onclick={() => openMaterial(id)}
                       >
-                        <Icon {id} />{n}<small>/{formatNumber(have)}</small>
-                        {#if assigned > 0}<small class="use" class:drain={draining}>−{formatNumber(drain)}/s</small>{/if}
+                        <Icon {id} />{#if assigned > 0}−{formatNumber(drain)}/s{:else}{n}{/if}
                       </button>
                     {:else}
-                      <span class="item" class:short={have < n} title={label}>
-                        <Icon {id} />{n}<small>/{formatNumber(have)}</small>
-                        {#if assigned > 0}<small class="use" class:drain={draining}>−{formatNumber(drain)}/s</small>{/if}
+                      <span class="item" class:short={have < n} class:drain={draining} title={label}>
+                        <Icon {id} />{#if assigned > 0}−{formatNumber(drain)}/s{:else}{n}{/if}
                       </span>
                     {/if}
                   {/each}
                   <span class="arrow">→</span>
                   {#each Object.entries(recipe.outputs) as [id, n] (id)}
-                    <span class="item out" title={RESOURCE_BY_ID[id]?.name}>
-                      <Icon {id} />{formatNumber(n * $game.multipliers.craftOutput)}
+                    {@const perCraft = n * $game.multipliers.craftOutput}
+                    <span
+                      class="item out"
+                      title="{RESOURCE_BY_ID[id]?.name} — {formatNumber(perCraft)} per craft · ⏱ {formatNumber(duration)}s{rawLabel(raw)}"
+                    >
+                      <Icon {id} />{#if assigned > 0}+{formatNumber((assigned * perCraft) / duration)}/s{:else}{formatNumber(perCraft)}{/if}
                     </span>
                   {/each}
-                </div>
-                {#if raw.length}
-                  <div class="raw muted">
-                    raw ≈
-                    {#each raw as [id, n], i (id)}{#if i}&nbsp;·
-                      {/if}<span title={RESOURCE_BY_ID[id]?.name}><Icon {id} />{formatNumber(Math.ceil(n))}</span>{/each}
-                  </div>
-                {/if}
-                <div class="crew">
-                  <Icon id={CRAFTER.icon} tint={false} /> <strong>{assigned}</strong>
-                  {#if assigned > 0}
-                    {@const starved = isInputStarved($game, rates, recipe)}
-                    {@const dryIn = Math.min(
-                      ...Object.keys(recipe.inputs).map((id) => secondsToDry($game, rates, id)),
-                    )}
-                    <span
-                      class="muted rate"
-                      class:starved
-                      title={starved ? 'Input-starved — crafting below this pace' : undefined}
-                    >
-                      {#if starved}⚠{/if}
-                      {#each Object.entries(recipe.outputs) as [id, n] (id)}
-                        +<Icon {id} />{formatNumber((assigned * n * $game.multipliers.craftOutput) / duration)}/s
-                      {/each}
-                    </span>
-                    {#if !starved && Number.isFinite(dryIn)}
-                      <span class="muted dry" title="Inputs empty at the current net drain">
-                        · dry in ~{formatDuration(dryIn)}
-                      </span>
-                    {/if}
-                  {:else}
-                    <span class="muted">· hold ❯ to assign · ⏱ {formatNumber(duration)}s</span>
-                  {/if}
                 </div>
               </div>
               <button
@@ -421,13 +405,12 @@
     justify-content: center;
   }
 
-  /* Single footer line: crafter count · rate · inline progress · time left. */
+  /* Crafter count rides the title row; dimmed while the recipe is unstaffed. */
   .crew {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 5px;
-    width: 100%;
+    gap: 3px;
+    margin-left: 4px;
     font-size: 0.8rem;
   }
 
@@ -436,18 +419,8 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .rate {
-    white-space: nowrap;
-  }
-
-  /* Full-pace rate shown while inputs can't keep up — flag it as optimistic. */
-  .rate.starved {
-    color: var(--gold);
-  }
-
-  .dry {
-    white-space: nowrap;
-    font-variant-numeric: tabular-nums;
+  .crew.idle {
+    opacity: 0.5;
   }
 
   .head {
@@ -492,18 +465,9 @@
     text-underline-offset: 2px;
   }
 
-  .item small {
-    color: var(--muted);
-  }
-
-  /* Per-second draw while staffed; amber when the material is a net drain. */
-  .item small.use {
-    margin-left: 3px;
-    color: var(--accent);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .item small.use.drain {
+  /* Staffed flow tints: amber while the material drains economy-wide; the
+     red "can't afford a craft" state below wins when both apply. */
+  .item.drain {
     color: var(--gold);
   }
 
@@ -518,10 +482,6 @@
 
   .arrow {
     color: var(--muted);
-  }
-
-  .raw {
-    font-size: 0.75rem;
   }
 
   .card.dim {

@@ -3,7 +3,7 @@ import { RESOURCES } from '../content/resources';
 import type { AccountData } from './account';
 import { harvestMultiplier } from './multipliers';
 import { craftTimeFactor, gatherTimeFactor } from './premium';
-import type { GameState, Recipe, ResourceId } from './types';
+import type { GameState, ResourceId } from './types';
 
 // Theoretical steady-state flow per material, mirroring the tick's gather and
 // craft loops at full pace. Deliberately ignores the stock throttle
@@ -63,14 +63,4 @@ export function secondsToDry(s: GameState, rates: FlowRates, id: ResourceId): nu
   const net = netRate(rates, id);
   if (net >= 0) return Infinity;
   return (s.resources[id] ?? 0) / -net;
-}
-
-// A recipe is input-starved when some input is draining and empty (or seconds
-// from it) — the tick then caps its runs below the displayed full-pace rate.
-const STARVED_HORIZON_SECONDS = 5;
-
-export function isInputStarved(s: GameState, rates: FlowRates, recipe: Recipe): boolean {
-  return Object.keys(recipe.inputs).some(
-    (id) => secondsToDry(s, rates, id) < STARVED_HORIZON_SECONDS,
-  );
 }

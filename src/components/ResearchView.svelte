@@ -782,11 +782,23 @@
     color: var(--muted);
   }
 
+  /* Materials footer: a full-bleed section split off by a line, so the node
+     reads as two tap zones — body queues research, chips open the material. */
   .tprice {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
     gap: 4px;
+    align-self: stretch;
+    margin: 2px -6px -6px;
+    padding: 5px 6px 6px;
+    border-top: 1px solid color-mix(in srgb, var(--muted) 35%, var(--border));
+    background: color-mix(in srgb, var(--bg) 60%, transparent);
+  }
+
+  .node.major .tprice {
+    margin: 2px -8px -10px;
+    padding: 5px 8px 10px;
   }
 
   .pitem {

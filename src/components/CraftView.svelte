@@ -40,6 +40,14 @@
 
   const query = $derived(($searchFilters.craft ?? '').trim().toLowerCase());
 
+  // "Staffed only" narrows the list to recipes with crafters assigned — with
+  // ~200 recipes, finding the handful that are actually running is the most
+  // common scan. Local state: leaving the tab resets it, same as search.
+  let staffedOnly = $state(false);
+  const staffedCount = $derived(
+    RECIPES.filter((r) => ($game.craftAssignment[r.id] ?? 0) > 0).length,
+  );
+
   // A recipe matches on its own name or on any output OR input material's
   // name — filtering for an item surfaces both the recipes that produce it
   // and the recipes that consume it.
@@ -53,7 +61,13 @@
 
   const groups = $derived(
     CATEGORY_ORDER.map((cat) => {
-      const recipes = RECIPES.filter((r) => r.category === cat.id && matchesQuery(r, query));
+      // Locked recipes can't be staffed, so the staffed filter empties them too.
+      const recipes = RECIPES.filter(
+        (r) =>
+          r.category === cat.id &&
+          matchesQuery(r, query) &&
+          (!staffedOnly || ($game.craftAssignment[r.id] ?? 0) > 0),
+      );
       return {
         ...cat,
         unlocked: recipes.filter((r) => $game.unlockedRecipes.includes(r.id)),
@@ -108,11 +122,23 @@
     <span class="count" title="{idle} idle of {totalCrafters($game, $account)} crafters">
       <Icon id={CRAFTER.icon} tint={false} /> <strong>{idle}</strong>/{totalCrafters($game, $account)} idle
     </span>
+    <button
+      class="staffed"
+      class:on={staffedOnly}
+      disabled={staffedCount === 0 && !staffedOnly}
+      title="Show only recipes with crafters assigned"
+      onclick={() => (staffedOnly = !staffedOnly)}
+    >
+      ⚒ {staffedCount} active
+    </button>
     <button onclick={unassignAllCrafters}>Unassign all</button>
     <button class="fill" disabled={idle <= 0} onclick={assignAllCrafters}>Assign evenly</button>
   </div>
 {/if}
 <div class="groups">
+  {#if staffedOnly && groups.length === 0}
+    <p class="muted empty">No staffed recipes{query ? ' match the search' : ''} — assign crafters to see them here.</p>
+  {/if}
   {#each groups as group (group.id)}
     <button class="group-head" onclick={() => toggleCollapsed('craft', group.id)}>
       <span>{group.icon} {group.label}</span>
@@ -121,7 +147,7 @@
         {isCollapsed($collapsed, 'craft', group.id) ? '▸' : '▾'}
       </span>
     </button>
-    {#if query || !isCollapsed($collapsed, 'craft', group.id)}
+    {#if query || staffedOnly || !isCollapsed($collapsed, 'craft', group.id)}
       <div class="list">
         {#each group.unlocked as recipe (recipe.id)}
             {@const assigned = $game.craftAssignment[recipe.id] ?? 0}
@@ -227,6 +253,7 @@
 
   .slots {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
     width: 100%;
@@ -253,6 +280,18 @@
     padding: 0 10px;
     font-size: 0.8rem;
     white-space: nowrap;
+  }
+
+  .slots .staffed {
+    border-radius: var(--radius-pill);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .slots .staffed.on {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 16%, var(--panel));
+    color: var(--accent);
+    font-weight: 600;
   }
 
   .slots .fill {

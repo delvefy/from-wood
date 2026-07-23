@@ -2,6 +2,7 @@
   import {
     account,
     changePassword,
+    passwordRecovery,
     registerWithEmail,
     requestPasswordReset,
     signInWithEmail,
@@ -50,6 +51,7 @@
     void run(async () => {
       await changePassword(newPassword);
       newPassword = '';
+      passwordRecovery.set(false);
       return 'Password changed.';
     });
   }
@@ -71,6 +73,11 @@
     <p class="signed-in">
       Signed in as <strong>{$account.email}</strong>
     </p>
+    {#if $passwordRecovery}
+      <p class="recovery small">
+        🔑 You arrived from a password-reset link — choose a new password below.
+      </p>
+    {/if}
     <form onsubmit={onChangePassword}>
       <label class="small muted" for="account-new-password">New password</label>
       <input
@@ -115,7 +122,7 @@
       </button>
     </form>
     <button class="linkish" disabled={busy || email.trim().length === 0} onclick={onForgot}>
-      Forgot password? Email me a new one
+      Forgot password? Email me a reset link
     </button>
   </div>
 {/if}
@@ -225,6 +232,13 @@
   .notice {
     color: var(--text);
     margin: 4px 0 0;
+  }
+
+  .recovery {
+    padding: 8px 10px;
+    border: 1px solid color-mix(in srgb, var(--magic) 45%, var(--border));
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--magic) 12%, var(--panel-2));
   }
 
   .error {

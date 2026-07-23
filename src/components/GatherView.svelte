@@ -1,4 +1,5 @@
 <script lang="ts">
+  import FirstStepsGuide from './FirstStepsGuide.svelte';
   import Icon from './Icon.svelte';
   import SearchBox from './SearchBox.svelte';
   import { RESOURCES } from '../content/resources';
@@ -46,6 +47,8 @@
     magitech: '⚡ Magitech',
   } as const;
 </script>
+
+<FirstStepsGuide />
 
 <SearchBox view="gather" placeholder="Search materials…" />
 

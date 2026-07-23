@@ -120,7 +120,17 @@
 </script>
 
 {#if !anyUnlocked}
-  <p class="muted empty">No recipes yet — research <strong>Woodworking</strong> to unlock crafting.</p>
+  {@const owned = new Set([...$game.unlockedTech, ...$game.researchQueue])}
+  {@const next = !owned.has('basic_tools')
+    ? { id: 'basic_tools', name: 'Basic Tools' }
+    : !owned.has('sharp_tools')
+      ? { id: 'sharp_tools', name: 'Sharp Tools' }
+      : { id: 'woodworking', name: 'Woodworking' }}
+  <p class="muted empty">
+    No recipes yet — crafting opens with <strong>Woodworking</strong>. Your next research on
+    the way there: <strong>{next.name}</strong>.
+  </p>
+  <button class="empty-cta" onclick={() => openTech(next.id)}>▶ Take me to {next.name}</button>
 {:else}
   <SearchBox view="craft" placeholder="Search recipes & materials…" />
   <div class="slots">
@@ -253,7 +263,18 @@
 <style>
   .empty {
     text-align: center;
-    padding: 24px 12px;
+    padding: 24px 12px 8px;
+  }
+
+  .empty-cta {
+    display: block;
+    margin: 0 auto;
+    background: none;
+    border: 1px solid color-mix(in srgb, var(--magic) 45%, var(--border));
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-weight: 600;
+    padding: 8px 14px;
   }
 
   .slots {

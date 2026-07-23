@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { writable } from 'svelte/store';
+import { activeTab } from '../util/nav';
 
 // Publishable credentials — safe to ship in the client. All protection comes
 // from row-level security and the definer RPCs in supabase/migrations/.
@@ -31,12 +32,21 @@ export interface AccountInfo {
 
 export const account = writable<AccountInfo>({ email: null, signedIn: false });
 
-supabase.auth.onAuthStateChange((_event, session) => {
+// True after arriving via an emailed password-reset link: the recovery token
+// in the URL signs the player in, and the Account panel prompts for a new
+// password until one is set.
+export const passwordRecovery = writable(false);
+
+supabase.auth.onAuthStateChange((event, session) => {
   const user = session?.user ?? null;
   account.set({
     email: user && !user.is_anonymous ? (user.email ?? null) : null,
     signedIn: user !== null,
   });
+  if (event === 'PASSWORD_RECOVERY') {
+    passwordRecovery.set(true);
+    activeTab.set('settings');
+  }
 });
 
 function authError(error: { message?: string } | null, fallback: string): Error {
@@ -80,13 +90,14 @@ export async function changePassword(newPassword: string): Promise<void> {
   if (error) throw authError(error, 'Password change failed');
 }
 
-// Ask the reset-password Edge Function to generate a fresh 10-digit password
-// and email it. Always resolves with a neutral message — the server never
-// reveals whether the email exists.
+// Ask the reset-password Edge Function to email a one-time recovery link.
+// Always resolves with a neutral message — the server never reveals whether
+// the email exists, and silently skips sending when one was sent within the
+// last 15 minutes.
 export async function requestPasswordReset(email: string): Promise<string> {
   const { error } = await supabase.functions.invoke('reset-password', {
     body: { email },
   });
   if (error) throw authError(error, 'Could not request a password reset');
-  return 'If an account exists for that email, a new 10-digit password is on its way.';
+  return 'If an account exists for that email, a reset link is on its way (at most one every 15 minutes).';
 }

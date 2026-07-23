@@ -45,7 +45,7 @@ export const RECIPES: Recipe[] = [
   r('iron_plate', 'Iron Plate', '🛡️', 'materials', { iron_ingot: 2 }, 45),
   r('copper_wire', 'Copper Wire', '➰', 'materials', { copper_ingot: 1 }, 30, undefined, 6),
   r('gear', 'Gear', '⚙️', 'materials', { iron_ingot: 1 }, 45, undefined, 2),
-  r('brick', 'Brick', '🟥', 'materials', { clay: 2, charcoal: 1 }, 45, undefined, 3),
+  r('brick', 'Clay Brick', '🟥', 'materials', { clay: 2, charcoal: 1 }, 45, undefined, 3),
   r('ceramic', 'Ceramic', '🏺', 'materials', { clay: 2, water: 1 }, 45),
   r('cloth', 'Cloth', '🧵', 'materials', { fiber: 4 }, 45),
   r('glue', 'Glue', '🫙', 'materials', { resin: 2, water: 1 }, 30, undefined, 2),

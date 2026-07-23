@@ -78,7 +78,7 @@ export const RESOURCES: ResourceDef[] = [
   item('iron_plate', 'Iron Plate', '🛡️', 2, 90),
   item('copper_wire', 'Copper Wire', '➰', 2, 5),
   item('gear', 'Gear', '⚙️', 2, 25),
-  item('brick', 'Brick', '🟥', 2, 10),
+  item('brick', 'Clay Brick', '🟥', 2, 10),
   item('ceramic', 'Ceramic', '🏺', 2, 25),
   item('cloth', 'Cloth', '🧵', 2, 18),
   item('glue', 'Glue', '🫙', 2, 14),

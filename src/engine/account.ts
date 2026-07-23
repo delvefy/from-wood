@@ -5,11 +5,14 @@ import type { PremiumId } from './types';
 // save slot. Base workers — real-money premium purchases plus worker rewards
 // won in tournaments — live here, so they apply to the village and seed every
 // new tournament run alike. Only the full hard reset (hardReset.ts) wipes them.
+//
+// Reward workers are server truth: the backend computes them from finalized
+// tournament entries, and every state refresh overwrites the local values
+// (setRewardWorkers). The local copy only bridges offline sessions.
 export interface AccountData {
   premium: Record<PremiumId, number>; // real-money purchases, id → copies owned
   rewardGatherers: number; // permanent gatherers won in tournaments
   rewardCrafters: number; // permanent crafters won in tournaments
-  claimedTournamentIds: string[]; // tournaments whose rewards were already granted
 }
 
 const STORAGE_KEY = 'from-wood-account-v1';
@@ -18,16 +21,14 @@ const EMPTY: AccountData = {
   premium: {},
   rewardGatherers: 0,
   rewardCrafters: 0,
-  claimedTournamentIds: [],
 };
 
 function normalize(parsed: Partial<AccountData> | null | undefined): AccountData {
   if (!parsed) return { ...EMPTY };
   return {
-    ...EMPTY,
-    ...parsed,
     premium: { ...(parsed.premium ?? {}) },
-    claimedTournamentIds: [...(parsed.claimedTournamentIds ?? [])],
+    rewardGatherers: Number(parsed.rewardGatherers ?? 0),
+    rewardCrafters: Number(parsed.rewardCrafters ?? 0),
   };
 }
 
@@ -64,23 +65,12 @@ export function migrateLegacyPremium(premium: Record<PremiumId, number>): void {
   });
 }
 
-// Adds a finished tournament's worker reward to the base workers, exactly once
-// per tournament. Returns whether anything was granted by this call.
-export function grantTournamentReward(
-  tournamentId: string,
-  gatherers: number,
-  crafters: number,
-): boolean {
-  let granted = false;
+// Overwrite the reward workers with the server-computed totals. Called on
+// every tournament state refresh, so locally forged values never survive
+// contact with the server.
+export function setRewardWorkers(gatherers: number, crafters: number): void {
   account.update((a) => {
-    if (a.claimedTournamentIds.includes(tournamentId)) return a;
-    granted = true;
-    return {
-      ...a,
-      rewardGatherers: a.rewardGatherers + gatherers,
-      rewardCrafters: a.rewardCrafters + crafters,
-      claimedTournamentIds: [...a.claimedTournamentIds, tournamentId],
-    };
+    if (a.rewardGatherers === gatherers && a.rewardCrafters === crafters) return a;
+    return { ...a, rewardGatherers: gatherers, rewardCrafters: crafters };
   });
-  return granted;
 }

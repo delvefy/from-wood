@@ -1,9 +1,9 @@
 import { get, writable } from 'svelte/store';
-import { rewardForRank } from '../content/tournament';
 import { ensureSignedIn, supabase } from '../lib/supabase';
-import { grantTournamentReward } from './account';
+import { getAccount, setRewardWorkers } from './account';
 import { resetTickClock } from './actions';
 import { gameMode, type GameMode } from './mode';
+import { totalCrafters, totalGatherers } from './premium';
 import { loadGame, saveGame, savesSuspended, writeFreshTournamentSave } from './save';
 import { game } from './state';
 import { getTournamentMeta, setTournamentMeta } from './tournamentMeta';
@@ -38,6 +38,9 @@ export interface TournamentState {
   nextStartsAt: number;
   tournament: TournamentInfo | null; // the running tournament, if any
   entry: EntryInfo | null; // the player's most recent entry, if any
+  // Server-computed total reward workers (null until the backend migration
+  // that adds them is deployed).
+  rewards: { gatherers: number; crafters: number } | null;
 }
 
 export interface LeaderboardRow {
@@ -81,6 +84,12 @@ function parseState(data: any): TournamentState {
           status: data.entry.status === 'finished' ? 'finished' : 'running',
         }
       : null,
+    rewards: data.rewards
+      ? {
+          gatherers: Number(data.rewards.gatherers ?? 0),
+          crafters: Number(data.rewards.crafters ?? 0),
+        }
+      : null,
   };
 }
 
@@ -100,14 +109,11 @@ function syncMeta(st: TournamentState): void {
   });
 }
 
-// Once a run is finalized, add its worker reward to the account's base
-// workers. grantTournamentReward is idempotent per tournament, so calling this
-// on every state refresh is safe.
-function claimRewardIfDue(st: TournamentState): void {
-  const e = st.entry;
-  if (!e || e.status !== 'finished' || e.finalRank == null) return;
-  const reward = rewardForRank(e.finalRank);
-  grantTournamentReward(e.tournamentId, reward.gatherers, reward.crafters);
+// The server computes reward workers from finalized entries; adopt its totals
+// wholesale so a tampered local value never survives a refresh.
+function syncRewards(st: TournamentState): void {
+  if (!st.rewards) return;
+  setRewardWorkers(st.rewards.gatherers, st.rewards.crafters);
 }
 
 function errorMessage(err: unknown): string {
@@ -122,7 +128,7 @@ function applyState(data: unknown): TournamentState {
   tournamentState.set(st);
   tournamentError.set(null);
   syncMeta(st);
-  claimRewardIfDue(st);
+  syncRewards(st);
   return st;
 }
 
@@ -216,11 +222,21 @@ export function maybeSubmitScore(force = false): void {
   if (now < meta.startsAt || now > meta.endsAt) return;
   if (!force && now - lastSubmitAt < 60_000) return;
   lastSubmitAt = now;
-  const score = totalValue(get(game));
+  const s = get(game);
+  const a = getAccount();
+  const score = totalValue(s);
+  // Worker counts feed the server's plausible-growth predictor; a score out
+  // of proportion to the workforce flags the entry for review.
+  const gatherers = totalGatherers(s, a);
+  const crafters = totalCrafters(s, a);
   void (async () => {
     try {
       await ensureSignedIn();
-      await supabase.rpc('submit_score', { p_score: score });
+      await supabase.rpc('submit_score', {
+        p_score: score,
+        p_gatherers: gatherers,
+        p_crafters: crafters,
+      });
     } catch {
       // Offline or transient — the next throttled submit retries.
     }

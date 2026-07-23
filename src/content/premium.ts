@@ -9,7 +9,7 @@ export const PREMIUM: PremiumItem[] = [
     name: 'Gathering Manager',
     icon: '🧑‍💼',
     description: 'Doubles the gather rate of every resource.',
-    priceUsd: 50,
+    priceUsd: 49.99,
     unique: true,
   },
   {
@@ -17,7 +17,7 @@ export const PREMIUM: PremiumItem[] = [
     name: 'Crafting Manager',
     icon: '👩‍💼',
     description: 'Doubles the craft rate of every recipe.',
-    priceUsd: 50,
+    priceUsd: 49.99,
     unique: true,
   },
   {
@@ -25,25 +25,16 @@ export const PREMIUM: PremiumItem[] = [
     name: 'Market Manager',
     icon: '🤵',
     description: 'Doubles the sell price of everything.',
-    priceUsd: 50,
+    priceUsd: 49.99,
     unique: true,
   },
   {
-    id: 'gathererPack',
-    name: 'Gatherer Pack',
+    id: 'workerPack',
+    name: 'Worker Pack',
     icon: '📦',
     description:
-      '+10 permanent base gatherers — they work the village and every tournament run, and never raise hire prices.',
-    priceUsd: 5,
-    unique: false,
-  },
-  {
-    id: 'crafterPack',
-    name: 'Crafter Pack',
-    icon: '🎁',
-    description:
-      '+1 permanent base crafter — they work the village and every tournament run, and never raise hire prices.',
-    priceUsd: 5,
+      '+10 permanent base gatherers and +1 permanent base crafter — they work the village and every tournament run, and never raise hire prices.',
+    priceUsd: 9.99,
     unique: false,
   },
 ];

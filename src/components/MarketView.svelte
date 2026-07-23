@@ -78,14 +78,12 @@
       owned: $game.workers,
       total: totalGatherers($game, $account),
       hire: hireWorker,
-      hint: 'Assign gatherers to resources in the Gather tab.',
     },
     {
       config: CRAFTER,
       owned: $game.crafters,
       total: totalCrafters($game, $account),
       hire: hireCrafter,
-      hint: 'Assign crafters to recipes in the Craft tab.',
     },
   ]);
 
@@ -188,7 +186,6 @@
       Hire {formatCredits(nextHireCost(row.config, row.owned))}
     </button>
   </div>
-  <p class="muted hint">{row.hint}</p>
 {/each}
 
 <h2>✨ Premium Emporium</h2>

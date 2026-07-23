@@ -30,11 +30,11 @@ export function sellPriceFactor(a: AccountData): number {
 // reward workers. Hire costs scale off `s.workers` / `s.crafters` alone, so
 // base workers never raise them.
 export function bonusGatherers(a: AccountData): number {
-  return 10 * premiumOwned(a, 'gathererPack') + a.rewardGatherers;
+  return 10 * premiumOwned(a, 'workerPack') + a.rewardGatherers;
 }
 
 export function bonusCrafters(a: AccountData): number {
-  return premiumOwned(a, 'crafterPack') + a.rewardCrafters;
+  return premiumOwned(a, 'workerPack') + a.rewardCrafters;
 }
 
 export function totalGatherers(s: GameState, a: AccountData): number {

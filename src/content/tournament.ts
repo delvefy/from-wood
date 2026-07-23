@@ -2,8 +2,8 @@
 // promotion counts) live in supabase/migrations/ — keep these in sync.
 
 export const GROUP_SIZE = 40;
-export const PROMOTE_COUNT = 8; // top N of a full group move up a league
-export const DEMOTE_COUNT = 8; // bottom N move down
+export const PROMOTE_COUNT = 20; // top half of a full group moves up a league
+export const DEMOTE_COUNT = 20; // bottom half moves down
 
 // League 0..4; profiles start in Sapling.
 export const LEAGUES = [
@@ -16,32 +16,29 @@ export const LEAGUES = [
 
 // Worker rewards, granted once per finished tournament and added permanently
 // to the player's base workers — they apply to the village and seed every
-// future tournament run. 1st: 2 crafters, 2nd: 1 crafter, 3rd–12th: 10 down
-// to 1 gatherer, below that: nothing.
+// future tournament run. Every place wins: the prize is worth 41 − rank
+// gatherers, paid as crafters (worth 10 gatherers each) plus the remainder.
+// 1st: 4 crafters, 2nd: 3 crafters + 9 gatherers, … 40th: 1 gatherer.
 export interface TournamentReward {
   gatherers: number;
   crafters: number;
 }
 
 export function rewardForRank(rank: number): TournamentReward {
-  if (rank === 1) return { gatherers: 0, crafters: 2 };
-  if (rank === 2) return { gatherers: 0, crafters: 1 };
-  if (rank >= 3 && rank <= 12) return { gatherers: 13 - rank, crafters: 0 };
-  return { gatherers: 0, crafters: 0 };
+  const value = Math.max(0, 41 - rank);
+  return { gatherers: value % 10, crafters: Math.floor(value / 10) };
 }
 
 export const REWARD_SUMMARY =
-  '1st: +2 crafters · 2nd: +1 crafter · 3rd–12th: +10 down to +1 gatherers';
+  'every place wins, from +4 crafters for 1st down to +1 gatherer for 40th';
 
 export function rewardLabel(rank: number): string {
   const r = rewardForRank(rank);
-  if (r.crafters > 0) {
-    return `🏆 +${r.crafters} permanent crafter${r.crafters > 1 ? 's' : ''} added to your base workers`;
-  }
-  if (r.gatherers > 0) {
-    return `🎁 +${r.gatherers} permanent gatherer${r.gatherers > 1 ? 's' : ''} added to your base workers`;
-  }
-  return 'No worker reward this time — finish in the top 12 to win permanent workers.';
+  const parts: string[] = [];
+  if (r.crafters > 0) parts.push(`+${r.crafters} crafter${r.crafters > 1 ? 's' : ''}`);
+  if (r.gatherers > 0) parts.push(`+${r.gatherers} gatherer${r.gatherers > 1 ? 's' : ''}`);
+  if (parts.length === 0) return 'No worker reward this time.';
+  return `🏆 ${parts.join(' and ')} added permanently to your base workers`;
 }
 
 const NAME_ADJECTIVES = [

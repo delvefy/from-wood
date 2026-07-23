@@ -102,8 +102,7 @@ function syncMeta(st: TournamentState): void {
 
 // Once a run is finalized, add its worker reward to the account's base
 // workers. grantTournamentReward is idempotent per tournament, so calling this
-// on every state refresh is safe; ranks below the reward table grant nothing
-// but still mark the tournament claimed.
+// on every state refresh is safe.
 function claimRewardIfDue(st: TournamentState): void {
   const e = st.entry;
   if (!e || e.status !== 'finished' || e.finalRank == null) return;

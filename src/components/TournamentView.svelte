@@ -52,6 +52,12 @@
   const lastResult = $derived(entry && entry.status === 'finished' ? entry : null);
   const league = $derived(LEAGUES[st?.league ?? 0] ?? LEAGUES[0]);
   const myRow = $derived($leaderboard.find((r) => r.isMe) ?? null);
+  // Mirrors finalize_due_tournaments(): top half promotes (never from a solo
+  // group), bottom half demotes, scaled down for undersized groups.
+  const promoteCut = $derived(
+    $leaderboard.length >= 2 ? Math.min(PROMOTE_COUNT, Math.ceil($leaderboard.length / 2)) : 0,
+  );
+  const demoteCut = $derived(Math.min(DEMOTE_COUNT, Math.floor($leaderboard.length / 2)));
 
   function timeLeft(until: number): string {
     const s = Math.max(0, Math.floor((until - now) / 1000));
@@ -156,7 +162,7 @@
         <div class="row-between">
           <h3>Your run</h3>
           {#if myRow}
-            <span class="rank" class:up={myRow.rank <= PROMOTE_COUNT}>#{myRow.rank}</span>
+            <span class="rank" class:up={myRow.rank <= promoteCut}>#{myRow.rank}</span>
           {/if}
         </div>
         <p class="muted small">
@@ -216,10 +222,8 @@
           {#each $leaderboard as row, i (i)}
             <li
               class:me={row.isMe}
-              class:up={row.rank <= PROMOTE_COUNT && $leaderboard.length >= 2}
-              class:down={(st?.league ?? 0) > 0 &&
-                $leaderboard.length > DEMOTE_COUNT &&
-                row.rank > $leaderboard.length - DEMOTE_COUNT}
+              class:up={row.rank <= promoteCut}
+              class:down={(st?.league ?? 0) > 0 && row.rank > $leaderboard.length - demoteCut}
             >
               <span class="pos">#{row.rank}</span>
               <span class="name">{row.name}{row.isMe ? ' (you)' : ''}</span>

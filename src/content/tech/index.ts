@@ -47,36 +47,29 @@ const slug = (name: string) =>
 
 // ---- Balance curves ---------------------------------------------------------
 // Authored costs and times only set the tree's SHAPE: cost entries fix each
-// node's resource mix, and the authored 30s..86400s times fix how eras relate.
-// The build below rescales both onto per-mode targets:
-// - Time: each tree's researchTimeSeconds is baked so the whole tree sums to
-//   RESEARCH_TOTAL_SECONDS of continuous research. The village research queue
-//   is 100 days, and the cost curve is tuned so gathering every node's
-//   materials with a full crew (~100 gatherers / 10 crafters,
-//   `npm run simulate -- 100 10 main`) ALSO takes ~100 days — the two run in
-//   parallel, so materials arrive just in time and the research slot rarely
-//   idles. The tournament research queue is 1 day (~48h wall clock).
+// node's resource mix, and the authored 30s..86400s times fix how eras relate
+// on the COST curve. Research itself is not a pacing axis: every node in both
+// trees researches in a flat RESEARCH_TIME_SECONDS, so clearing a tree is
+// paced entirely by gathering and crafting the node costs.
+// - Time: every baked node gets the flat research time.
 // - Cost: each node's cost value (amounts × base sell price) follows a power
 //   curve of its authored time. Each mode has its own curve, baked into its
 //   own nodes.
-export const RESEARCH_TOTAL_SECONDS: Record<GameMode, number> = {
-  main: 100 * 86_400, // gathering runs in parallel and is tuned to the same ~100 days
-  tournament: 24 * 3_600, // 1 day
-};
+export const RESEARCH_TIME_SECONDS = 60; // flat, every node, both modes
 
-// The tournament curve is tuned with `npm run simulate`
-// (scripts/simulate-tournament.ts) so a player with 100 gatherers and 10
-// crafters finishes the whole tree in ~48h — the 24h research queue plus
-// ~24h of material stalls. Re-run the sim after changing curves, recipes or
-// worker math.
+// Both curves are tuned with `npm run simulate -- 100 10 <mode>`
+// (scripts/simulate-tournament.ts): a full crew of 100 gatherers and 10
+// crafters, working constantly from the first tick, collects and crafts every
+// node's materials in ~24h (tournament) / ~100 days (village). The report's
+// "all materials collected (last node queued)" is the tuning target; research
+// only adds one flat minute per node on top. Re-run the sim after changing
+// curves, recipes or worker math.
 //
 // The village curve shares the tournament's cheap start (so a fresh village
-// gets moving within its first few gather cycles) and ends ~50× the
-// tournament's final node. The end value is tuned with the sim to the highest
-// cost where the 100-day research queue never stalls on materials — the crew
-// spends the full ~100 days collecting, and everything arrives just in time.
-const TOURNAMENT_COST_CURVE = { rootValue: 2, endValue: 740_000 }; // 1 wood + 1 water at the root
-const VILLAGE_COST_CURVE = { rootValue: 2, endValue: 45_000_000 };
+// gets moving within its first few gather cycles) and ends far above the
+// tournament's final node.
+const TOURNAMENT_COST_CURVE = { rootValue: 2, endValue: 1_750_000 }; // 1 wood + 1 water at the root
+const VILLAGE_COST_CURVE = { rootValue: 2, endValue: 46_500_000 };
 
 const AUTHORED_TIME = { root: 30, end: 86_400 };
 
@@ -208,13 +201,8 @@ const AUTHORED_BY_ID: Record<string, TechNode> = Object.fromEntries(
 );
 
 // ---- Tournament tree --------------------------------------------------------
-// The authored 100 nodes on the authored canvas. Times normalize the queue to
-// one day (rounded at village scale first, then compressed, so the two trees
-// keep exactly proportional durations on shared ids).
-const AUTHORED_TOTAL_SECONDS = AUTHORED.reduce((sum, n) => sum + n.researchTimeSeconds, 0);
-const PRE_SPLIT_TIME_SCALE = RESEARCH_TOTAL_SECONDS.main / AUTHORED_TOTAL_SECONDS;
-const TOURNAMENT_COMPRESSION = RESEARCH_TOTAL_SECONDS.tournament / RESEARCH_TOTAL_SECONDS.main;
-
+// The authored 98 nodes on the authored canvas. The authored time feeds the
+// cost curve; the baked research time is the flat minute.
 const TOURNAMENT_TREE: TechNode[] = AUTHORED.map((n) => ({
   ...n,
   description:
@@ -226,8 +214,7 @@ const TOURNAMENT_TREE: TechNode[] = AUTHORED.map((n) => ({
     ...bonusEffects(NODE_BONUS_PERCENT.tournament),
   ],
   cost: scaledCost(n.cost, targetCostValue(n.researchTimeSeconds, TOURNAMENT_COST_CURVE)),
-  researchTimeSeconds:
-    Math.round(n.researchTimeSeconds * PRE_SPLIT_TIME_SCALE) * TOURNAMENT_COMPRESSION,
+  researchTimeSeconds: RESEARCH_TIME_SECONDS,
 }));
 
 // ---- Village tree -----------------------------------------------------------
@@ -341,23 +328,6 @@ edges.forEach((edge, idx) => {
   child.requires = child.requires.map((r) => (r === edge.from ? prev : r));
 });
 
-// Village-only early-game pacing: the root, the four branch openers one hop
-// out, and the two first-unlock majors right behind them (woodworking's first
-// crafting recipes, rope_making's first extra resource) research in seconds
-// regardless of the 100-day normalization, so a fresh village gets moving —
-// and sees its first unlocks — within its first few gather cycles. (Their
-// costs need no override — the village curve starts as cheap as the
-// tournament's.)
-const VILLAGE_TIME_OVERRIDES: Record<string, number> = {
-  basic_tools: 30,
-  sharp_tools: 45,
-  wood_attunement: 45,
-  runic_saws: 45,
-  mana_lathe: 45,
-  woodworking: 60,
-  rope_making: 60,
-};
-
 const villageAuthored: TechNode[] = [...AUTHORED.map((n) => villageBase[n.id]), ...villageFillers];
 
 // Where several cross-links converge on the same spine major, filler chains
@@ -406,14 +376,10 @@ const villageAuthored: TechNode[] = [...AUTHORED.map((n) => villageBase[n.id]), 
     if (!moved) break;
   }
 }
-const VILLAGE_AUTHORED_TOTAL = villageAuthored.reduce((sum, n) => sum + n.researchTimeSeconds, 0);
-const VILLAGE_TIME_SCALE = RESEARCH_TOTAL_SECONDS.main / VILLAGE_AUTHORED_TOTAL;
-
 const VILLAGE_TREE: TechNode[] = villageAuthored.map((n) => ({
   ...n,
   cost: scaledCost(n.cost, targetCostValue(n.researchTimeSeconds, VILLAGE_COST_CURVE)),
-  researchTimeSeconds:
-    VILLAGE_TIME_OVERRIDES[n.id] ?? Math.max(1, Math.round(n.researchTimeSeconds * VILLAGE_TIME_SCALE)),
+  researchTimeSeconds: RESEARCH_TIME_SECONDS,
 }));
 
 if (VILLAGE_TREE.length !== VILLAGE_NODE_TARGET) {

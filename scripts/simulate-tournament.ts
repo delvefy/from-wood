@@ -9,10 +9,11 @@
 //   through unlocked recipes down to raw resources;
 // - assigns crafters to needed recipes (base materials first) and gatherers
 //   proportional to each raw's outstanding time-to-gather;
-// - queues any affordable node whose prerequisites are researched or queued
-//   (shortest research time first).
-// Reports wall-clock completion time and where the research slot idled, so
-// cost/time curves can be tuned against a target (~48h tournament).
+// - queues any affordable node whose prerequisites are researched or queued.
+// Research time is a flat minute per node, so completion is paced entirely by
+// materials. Reports wall-clock completion time and when the last node's cost
+// was paid, so cost curves can be tuned against a target (~24h tournament,
+// ~100 days village).
 import { RECIPES, RECIPE_BY_ID } from '../src/content/recipes';
 import { RESOURCES, RESOURCE_BY_ID } from '../src/content/resources';
 import { techTree } from '../src/content/tech';

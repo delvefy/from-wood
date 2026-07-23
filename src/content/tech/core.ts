@@ -2,9 +2,9 @@ import type { TechNode } from '../../engine/types';
 
 // The hand-placed root of the tree — the bottom vertex of the triangle.
 // Everything else is generated from the compact specs in majors/paths. The
-// root counts as the first node of the magitech spirit spine; the first-five
-// pacing overrides in index.ts keep it (and the four branch openers) cheap
-// and fast.
+// root counts as the first node of the magitech spirit spine. Its authored
+// time/cost only seed the cost curve; like every node it researches in the
+// flat minute baked by index.ts.
 export const CORE: TechNode[] = [
   {
     id: 'basic_tools',

@@ -22,9 +22,10 @@ import type { MajorSpec } from './specs';
 // this layout; re-verify by hand (or rebuild it) before moving majors.
 //
 // Balance: authored cost mixes and times only set the tree's SHAPE — index.ts
-// rescales costs onto the per-mode value curve and normalizes times so the
-// whole tree sums to RESEARCH_TOTAL_SECONDS. Authored times still matter:
-// they fix how eras relate (30s at the root, 86400s on the final wonders).
+// rescales costs onto the per-mode value curve and bakes a flat 1-minute
+// research time into every node. Authored times still matter: they fix how
+// eras relate on the COST curve (30s at the root, 86400s on the final
+// wonders).
 // Costs lean on CRAFTED goods from earlier eras; `npm run validate` proves
 // every cost is obtainable before the node that charges it.
 export const MAJORS: MajorSpec[] = [

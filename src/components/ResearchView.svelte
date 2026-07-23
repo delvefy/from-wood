@@ -201,13 +201,21 @@
   // Level of detail: below this zoom a 108px card is under ~40px on screen —
   // its text is unreadable and culling no longer helps (the cull box grows as
   // 1/zoom, so far out ALL 500 cards were live DOM, and every zoom step
-  // re-rasterized ~5000 styled elements). Render status-colored dots in the
-  // SVG instead; full cards return once you zoom back in.
+  // re-rasterized ~5000 styled elements). Swap to SVG mini-cards: the same
+  // card silhouette at world scale (body + branch stripe, status colors), so
+  // zooming out shrinks the tree instead of replacing it. Geometry is static
+  // world units — nothing per-frame but the parent transform.
   const LOD_ZOOM = 0.35;
   const lod = $derived(zoom < LOD_ZOOM);
-  // Constant ~7px screen radius, capped in world units so dots never swallow
-  // the ~150px gap between neighbors just below the LOD threshold.
-  const dotR = $derived(Math.min(44, 7 / zoom));
+  // Very far out (whole-tree view) locked cards get less dimming: at ~4px per
+  // card the near-threshold dim level fades the pyramid into the backdrop.
+  const far = $derived(zoom < 0.12);
+  // Mini-card world footprint, matching the DOM cards' width; height is the
+  // typical rendered card height so the swap at the threshold is seamless.
+  const MINI_W = 108;
+  const MINI_H = 64;
+  const MINI_W_MAJOR = 132;
+  const MINI_H_MAJOR = 84;
 
   type Status = 'owned' | 'active' | 'queued' | 'available' | 'locked';
 
@@ -325,7 +333,7 @@
       class="world"
       style="transform: translate({vw / 2 - cam.x * zoom}px, {vh / 2 - cam.y * zoom}px) scale({zoom})"
     >
-      <svg class="edges" class:lod aria-hidden="true">
+      <svg class="edges" class:lod class:far aria-hidden="true">
         {#each visibleEdges as e (e.id)}
           <line
             x1={e.x1}
@@ -339,15 +347,16 @@
         {#if lod}
           {#each visibleNodes as node (node.id)}
             {@const st = status(node)}
-            {@const r = node.major ? dotR * 1.6 : dotR}
-            <rect
-              x={node.x - r}
-              y={node.y - r}
-              width={r * 2}
-              height={r * 2}
-              class="dot {node.branch} {st}"
+            {@const w = node.major ? MINI_W_MAJOR : MINI_W}
+            {@const h = node.major ? MINI_H_MAJOR : MINI_H}
+            <g
+              class="mini {node.branch} {st}"
               class:ready={st === 'available' && canAfford($game, nodeCost(node))}
-            />
+              transform="translate({node.x}, {node.y})"
+            >
+              <rect class="mbody" x={-w / 2} y={-h / 2} width={w} height={h} rx="8" />
+              <rect class="mstripe" x={-w / 2} y={-h / 2} width={w} height="5" />
+            </g>
           {/each}
         {/if}
       </svg>
@@ -601,40 +610,90 @@
     stroke: var(--tree-magitech);
   }
 
-  /* Zoomed-out LOD dots: status first (what can I do?), branch color for
-     owned nodes so cleared regions read as tinted territory on the map. */
-  .dot {
-    fill: color-mix(in srgb, var(--border) 65%, var(--panel));
+  /* Zoomed-out LOD mini-cards: the DOM cards' silhouette (body, border,
+     branch stripe, status colors) redrawn as cheap SVG rects, so the tree
+     keeps looking like the tree at any zoom. Borders use non-scaling strokes
+     so cards stay outlined even when a card is only a few pixels wide. */
+  .mini .mbody {
+    fill: var(--panel);
+    stroke: var(--border);
+    stroke-width: 1.25;
+    vector-effect: non-scaling-stroke;
   }
 
-  .dot.available {
-    fill: color-mix(in srgb, var(--accent) 45%, var(--border));
+  .mini .mstripe {
+    stroke: none;
   }
 
-  .dot.available.ready {
-    fill: var(--accent);
-  }
-
-  .dot.active {
-    fill: var(--science);
-  }
-
-  /* Grey, not science-blue: --science equals --tech, so queued dots were
-     indistinguishable from owned tech territory when zoomed out. */
-  .dot.queued {
-    fill: var(--muted);
-  }
-
-  .dot.owned.magic {
+  .mini.magic .mstripe {
     fill: var(--tree-magic);
   }
 
-  .dot.owned.tech {
+  .mini.tech .mstripe {
     fill: var(--tree-tech);
   }
 
-  .dot.owned.magitech {
+  .mini.magitech .mstripe {
     fill: var(--tree-magitech);
+  }
+
+  /* Dimmer than live cards but stronger than the DOM cards' 0.35 — panel
+     fill on the beige backdrop at 0.35 made the far-out tree nearly
+     invisible, and reading the pyramid's shape is the point of zooming out. */
+  .mini.locked {
+    opacity: 0.55;
+  }
+
+  .mini.locked .mbody {
+    fill: color-mix(in srgb, var(--border) 35%, var(--panel));
+  }
+
+  .far .mini.locked {
+    opacity: 0.85;
+  }
+
+  .far .mini.locked .mbody {
+    stroke: color-mix(in srgb, var(--muted) 45%, var(--border));
+  }
+
+  /* Owned cards tint toward their branch color so cleared regions still read
+     as tinted territory from far out (what the old dots were for). */
+  .mini.owned.magic .mbody {
+    fill: color-mix(in srgb, var(--tree-magic) 32%, var(--panel-2));
+    stroke: var(--tree-magic);
+  }
+
+  .mini.owned.tech .mbody {
+    fill: color-mix(in srgb, var(--tree-tech) 32%, var(--panel-2));
+    stroke: var(--tree-tech);
+  }
+
+  .mini.owned.magitech .mbody {
+    fill: color-mix(in srgb, var(--tree-magitech) 32%, var(--panel-2));
+    stroke: var(--tree-magitech);
+  }
+
+  .mini.available .mbody {
+    stroke: color-mix(in srgb, var(--accent) 45%, var(--border));
+  }
+
+  .mini.available.ready .mbody {
+    fill: color-mix(in srgb, var(--accent) 30%, var(--panel));
+    stroke: var(--accent);
+    stroke-width: 2;
+  }
+
+  .mini.active .mbody {
+    fill: color-mix(in srgb, var(--science) 22%, var(--panel));
+    stroke: var(--science);
+    stroke-width: 2;
+  }
+
+  /* Grey, not science-blue: --science equals --tech, so queued cards were
+     indistinguishable from owned tech territory when zoomed out. */
+  .mini.queued .mbody {
+    stroke: var(--muted);
+    stroke-dasharray: 7 5;
   }
 
   .node {

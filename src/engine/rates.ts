@@ -1,15 +1,15 @@
 import { RECIPE_BY_ID } from '../content/recipes';
-import { RESOURCES } from '../content/resources';
+import { RESOURCE_BY_ID } from '../content/resources';
 import type { AccountData } from './account';
 import { harvestMultiplier } from './multipliers';
 import { craftTimeFactor, gatherTimeFactor } from './premium';
 import type { GameState, ResourceId } from './types';
 
 // Theoretical steady-state flow per material, mirroring the tick's gather and
-// craft loops at full pace. Deliberately ignores the stock throttle
-// (affordableRuns): a consumer of an empty, draining material reports its
-// demand, not its actual throughput. Pair with stock via secondsToDry /
-// isInputStarved to surface that gap in the UI.
+// craft loops at full pace. Deliberately ignores the tick's stock throttle
+// (runs capped by what stock can pay for): a consumer of an empty, draining
+// material reports its demand, not its actual throughput. Pair with stock via
+// secondsToDry / isInputStarved to surface that gap in the UI.
 export interface FlowRates {
   production: Record<ResourceId, number>;
   consumption: Record<ResourceId, number>;
@@ -25,20 +25,23 @@ export function computeFlowRates(s: GameState, a: AccountData): FlowRates {
   const gatherFactor = gatherTimeFactor(a);
   const craftFactor = craftTimeFactor(a);
 
-  for (const def of RESOURCES) {
-    const assigned = s.gatherAssignment[def.id] ?? 0;
-    if (assigned <= 0 || def.harvestAmount <= 0 || !s.unlockedResources.includes(def.id)) {
+  for (const [id, assigned] of Object.entries(s.gatherAssignment)) {
+    const def = RESOURCE_BY_ID[id];
+    if (!def || assigned <= 0 || def.harvestAmount <= 0 || !s.unlockedResources.includes(id)) {
       continue;
     }
     const cycle = def.extractTimeSeconds * gatherFactor;
-    production[def.id] =
-      (production[def.id] ?? 0) +
-      (assigned * def.harvestAmount * harvestMultiplier(s.multipliers, def.id)) / cycle;
+    production[id] =
+      (production[id] ?? 0) +
+      (assigned * def.harvestAmount * harvestMultiplier(s.multipliers, id)) / cycle;
   }
 
+  // Runs once per second while the Craft tab is open, so membership is a Set
+  // rather than an O(unlocked) `.includes` per staffed recipe.
+  const unlockedRecipeSet = new Set(s.unlockedRecipes);
   for (const [recipeId, assigned] of Object.entries(s.craftAssignment)) {
     const recipe = RECIPE_BY_ID[recipeId];
-    if (!recipe || assigned <= 0 || !s.unlockedRecipes.includes(recipeId)) continue;
+    if (!recipe || assigned <= 0 || !unlockedRecipeSet.has(recipeId)) continue;
     const cycle = recipe.craftTimeSeconds * craftFactor;
     for (const [id, n] of Object.entries(recipe.inputs)) {
       consumption[id] = (consumption[id] ?? 0) + (assigned * n) / cycle;

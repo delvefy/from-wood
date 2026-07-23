@@ -9,36 +9,35 @@
   import { harvestMultiplier } from '../engine/multipliers';
   import { gatherTimeFactor, totalGatherers } from '../engine/premium';
   import { game } from '../engine/state';
+  import type { TechNode } from '../engine/types';
   import { formatNumber } from '../util/format';
   import { holdRepeat } from '../util/holdRepeat';
   import { openTech, searchFilters } from '../util/nav';
 
+  // Only ~20 of the 200+ catalog entries are gatherable; filter those once so
+  // the per-tick deriveds below never rescan the full catalog.
+  const RAWS = RESOURCES.filter((r) => r.harvestAmount > 0);
+
   const query = $derived(($searchFilters.gather ?? '').trim().toLowerCase());
+  const unlockedSet = $derived(new Set($game.unlockedResources));
   const gatherable = $derived(
-    RESOURCES.filter(
-      (r) =>
-        r.harvestAmount > 0 &&
-        $game.unlockedResources.includes(r.id) &&
-        r.name.toLowerCase().includes(query),
-    ),
+    RAWS.filter((r) => unlockedSet.has(r.id) && r.name.toLowerCase().includes(query)),
   );
   const locked = $derived(
-    RESOURCES.filter(
-      (r) =>
-        r.harvestAmount > 0 &&
-        !$game.unlockedResources.includes(r.id) &&
-        r.name.toLowerCase().includes(query),
-    ),
+    RAWS.filter((r) => !unlockedSet.has(r.id) && r.name.toLowerCase().includes(query)),
   );
   const idle = $derived(idleWorkers($game));
 
-  // The tech node whose research unlocks this resource (for the locked hint).
-  // Unlock effects live on majors, which are identical in both mode trees, so
-  // the village tree serves as the lookup for either mode.
-  function unlockedBy(resourceId: string) {
-    return techTree('main').find((t) =>
-      t.effects.some((e) => e.kind === 'unlockResource' && e.id === resourceId),
-    );
+  // The tech node whose research unlocks each resource (for the locked hint),
+  // resolved once — a find() over the 500-node tree per locked card scanned
+  // the whole tree each time. Unlock effects live on majors, which are
+  // identical in both mode trees, so the village tree serves either mode.
+  // First matching node wins, mirroring the find() this replaces.
+  const unlockedByTech = new Map<string, TechNode>();
+  for (const t of techTree('main')) {
+    for (const e of t.effects) {
+      if (e.kind === 'unlockResource' && !unlockedByTech.has(e.id)) unlockedByTech.set(e.id, t);
+    }
   }
 
   const branchLabel = {
@@ -101,7 +100,7 @@
   {#if locked.length > 0}
     <h3 class="section muted">🔒 Locked</h3>
     {#each locked as r (r.id)}
-      {@const tech = unlockedBy(r.id)}
+      {@const tech = unlockedByTech.get(r.id)}
       <div class="card dim">
         <div class="top">
           <span class="icon grey"><Icon id={r.id} /></span>

@@ -168,14 +168,13 @@ export function queueResearch(techId: TechId): void {
 
 // `fraction` sells that share of each stack (0..1). Stacks are fractional
 // (gathering and crafting accrue continuously), so no rounding — selling 100%
-// empties the stack exactly. `only` limits the sale to those resource ids.
-export function sellEverything(fraction = 1, only?: ReadonlySet<string>): void {
+// empties the stack exactly.
+export function sellEverything(fraction = 1): void {
   game.update((s) => {
     let gained = 0;
     const f = Math.min(1, Math.max(0, fraction));
     const priceFactor = sellPriceFactor(getAccount());
     for (const id of s.unlockedResources) {
-      if (only && !only.has(id)) continue;
       const def = RESOURCE_BY_ID[id];
       const n = (s.resources[id] ?? 0) * f;
       if (!def || n <= 0) continue;

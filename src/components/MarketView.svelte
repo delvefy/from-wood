@@ -19,14 +19,13 @@
     totalGatherers,
   } from '../engine/premium';
   import { hardReset } from '../engine/hardReset';
-  import type { PremiumItem } from '../engine/types';
+  import type { PremiumItem, ResourceDef } from '../engine/types';
   import { game } from '../engine/state';
   import Icon from './Icon.svelte';
   import SearchBox from './SearchBox.svelte';
   import { collapsed, isCollapsed, toggleCollapsed } from '../util/collapse';
   import { formatCredits, formatNumber } from '../util/format';
   import { searchFilters } from '../util/nav';
-  import { sellTicks, toggleSellTick } from '../util/sellTicks';
 
   // Crafted items sell under their recipe's category; gathered ones share one group.
   const categoryByOutput = new Map<string, string>();
@@ -40,35 +39,38 @@
 
   const query = $derived(($searchFilters.market ?? '').trim().toLowerCase());
 
-  const sellGroups = $derived(
-    SELL_CATEGORIES.map((cat) => ({
-      ...cat,
-      items: RESOURCES.filter(
-        (r) =>
-          $game.unlockedResources.includes(r.id) &&
-          r.name.toLowerCase().includes(query) &&
-          (r.harvestAmount > 0 ? 'gathered' : (categoryByOutput.get(r.id) ?? 'goods')) === cat.id,
-      ),
-    })).filter((g) => g.items.length > 0),
-  );
+  // Rebuilt (and saleValue re-run 4×) on every game tick, so unlock checks
+  // are a Set and the groups come from one pass over the catalog — a filter
+  // per category with `.includes` per item made it O(categories × items ×
+  // unlocked) per second.
+  const unlockedSet = $derived(new Set($game.unlockedResources));
+  const sellGroups = $derived.by(() => {
+    const byCategory = new Map(
+      SELL_CATEGORIES.map((cat) => [cat.id, { ...cat, items: [] as ResourceDef[] }]),
+    );
+    for (const r of RESOURCES) {
+      if (!unlockedSet.has(r.id) || !r.name.toLowerCase().includes(query)) continue;
+      const cat = r.harvestAmount > 0 ? 'gathered' : (categoryByOutput.get(r.id) ?? 'goods');
+      byCategory.get(cat)?.items.push(r);
+    }
+    return [...byCategory.values()].filter((g) => g.items.length > 0);
+  });
 
   const priceFactor = $derived(sellPriceFactor($account));
 
-  // Credits a sale pays out: `fraction` of every unlocked stack, optionally
-  // limited to the ticked ids — mirrors sellEverything exactly.
-  function saleValue(fraction: number, only?: ReadonlySet<string>): number {
+  // Credits a sale pays out: `fraction` of every unlocked stack — mirrors
+  // sellEverything exactly.
+  function saleValue(fraction: number): number {
     return RESOURCES.reduce(
       (sum, r) =>
-        $game.unlockedResources.includes(r.id) && (!only || only.has(r.id))
+        unlockedSet.has(r.id)
           ? sum + ($game.resources[r.id] ?? 0) * fraction * r.baseSellPrice * priceFactor
           : sum,
       0,
     );
   }
 
-  const SELL_PRESETS = [25, 50, 100];
-  const ticked = $derived(new Set($sellTicks));
-  const customValue = $derived(saleValue(1, ticked));
+  const SELL_PRESETS = [25, 50, 75, 100];
 
   // `owned` drives the hire cost (only paid hires scale it); `total` includes
   // base workers (premium packs + tournament rewards) and is what the player sees.
@@ -127,14 +129,6 @@
         {pct}%{value > 0 ? ` +${formatCredits(value)}` : ''}
       </button>
     {/each}
-    <button
-      class="sell-all"
-      disabled={customValue <= 0}
-      aria-label="Sell all of the ticked items"
-      onclick={() => sellEverything(1, ticked)}
-    >
-      Custom{customValue > 0 ? ` +${formatCredits(customValue)}` : ''}
-    </button>
   </div>
 </div>
 
@@ -153,12 +147,6 @@
         {@const have = $game.resources[r.id] ?? 0}
         {@const value = have * r.baseSellPrice * priceFactor}
         <div class="row sell">
-          <input
-            type="checkbox"
-            checked={ticked.has(r.id)}
-            aria-label="Include {r.name} in custom sell"
-            onchange={() => toggleSellTick(r.id)}
-          />
           <span class="what"><Icon id={r.id} /> {r.name}</span>
           <span class="have">{formatNumber(have)}</span>
           <span class="price">{formatCredits(r.baseSellPrice * priceFactor)}/u</span>
@@ -239,11 +227,16 @@
     gap: 8px;
   }
 
+  /* Fixed 2×2 grid: equal-width cells so buttons keep their spot no matter
+     how long the credit amounts get. */
   .sell-btns {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 6px;
+  }
+
+  .sell-btns .muted {
+    grid-column: 1 / -1;
   }
 
   .sell-all {
@@ -254,15 +247,10 @@
     padding: 0 10px;
     font-size: 0.8rem;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
     font-variant-numeric: tabular-nums;
-  }
-
-  input[type='checkbox'] {
-    width: 18px;
-    height: 18px;
-    margin: 0;
-    flex-shrink: 0;
-    accent-color: var(--gold);
   }
 
   .list {

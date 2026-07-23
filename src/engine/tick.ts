@@ -1,5 +1,5 @@
 import { RECIPE_BY_ID } from '../content/recipes';
-import { RESOURCES } from '../content/resources';
+import { RESOURCE_BY_ID } from '../content/resources';
 import { techById } from '../content/tech';
 import { get } from 'svelte/store';
 import { getAccount } from './account';
@@ -14,27 +14,6 @@ export function canAfford(s: GameState, inputs: Record<ResourceId, number>): boo
 
 export function spendInputs(s: GameState, inputs: Record<ResourceId, number>): void {
   for (const [id, n] of Object.entries(inputs)) s.resources[id] = (s.resources[id] ?? 0) - n;
-}
-
-export function grantOutputs(s: GameState, outputs: Record<ResourceId, number>): void {
-  for (const [id, n] of Object.entries(outputs)) s.resources[id] = (s.resources[id] ?? 0) + n;
-}
-
-export function scaleAmounts(
-  amounts: Record<ResourceId, number>,
-  factor: number,
-): Record<ResourceId, number> {
-  return Object.fromEntries(Object.entries(amounts).map(([id, n]) => [id, n * factor]));
-}
-
-// How many runs of a recipe the current stock can pay for (Infinity if free).
-// Fractional: crafting is a continuous flow, so 0.4 of a run is spendable.
-export function affordableRuns(s: GameState, inputs: Record<ResourceId, number>): number {
-  let runs = Infinity;
-  for (const [id, n] of Object.entries(inputs)) {
-    runs = Math.min(runs, (s.resources[id] ?? 0) / n);
-  }
-  return runs;
 }
 
 export function pushUnique<T>(arr: T[], value: T): void {
@@ -83,16 +62,17 @@ export function tick(s: GameState, seconds: number): GameState {
 
   // Gathering is a continuous flow: each worker yields
   // harvestAmount / extractTime per second, scaled by multipliers. No cycle
-  // state — a tick of any length accrues exactly rate × seconds.
-  for (const def of RESOURCES) {
-    const assigned = s.gatherAssignment[def.id] ?? 0;
-    if (assigned <= 0 || def.harvestAmount <= 0 || !s.unlockedResources.includes(def.id)) {
+  // state — a tick of any length accrues exactly rate × seconds. Iterates the
+  // assignment map (a handful of staffed raws) rather than the full catalog.
+  for (const [id, assigned] of Object.entries(s.gatherAssignment)) {
+    const def = RESOURCE_BY_ID[id];
+    if (!def || assigned <= 0 || def.harvestAmount <= 0 || !s.unlockedResources.includes(id)) {
       continue;
     }
     const cycle = def.extractTimeSeconds * gatherFactor;
-    s.resources[def.id] =
-      (s.resources[def.id] ?? 0) +
-      (seconds / cycle) * assigned * def.harvestAmount * harvestMultiplier(s.multipliers, def.id);
+    s.resources[id] =
+      (s.resources[id] ?? 0) +
+      (seconds / cycle) * assigned * def.harvestAmount * harvestMultiplier(s.multipliers, id);
   }
 
   // Research: a single slot works through the queue front-to-back.
@@ -121,23 +101,51 @@ export function tick(s: GameState, seconds: number): GameState {
   // instead of stalling whole cycles). Long offline windows advance in
   // sub-steps so recipes chained through craftAssignment order keep feeding
   // each other at close to online fidelity.
-  let craftLeft = seconds;
+  // Everything per-recipe except the stock throttle is invariant across
+  // sub-steps, so resolve it once: an 8h catch-up used to redo the recipe
+  // lookup, an O(unlocked) `.includes` and four throwaway objects per staffed
+  // recipe × ~480 sub-steps. Built after the research phase so recipes
+  // unlocked this very tick are already visible (matching the old per-substep
+  // check).
+  const unlockedRecipeSet = new Set(s.unlockedRecipes);
+  const flows: {
+    assigned: number;
+    cycle: number;
+    inputs: [ResourceId, number][];
+    outputs: [ResourceId, number][];
+  }[] = [];
+  for (const [recipeId, assigned] of Object.entries(s.craftAssignment)) {
+    const recipe = RECIPE_BY_ID[recipeId];
+    if (!recipe || assigned <= 0 || !unlockedRecipeSet.has(recipeId)) continue;
+    flows.push({
+      assigned,
+      cycle: recipe.craftTimeSeconds * craftFactor,
+      inputs: Object.entries(recipe.inputs),
+      outputs: Object.entries(recipe.outputs),
+    });
+  }
+
+  let craftLeft = flows.length > 0 ? seconds : 0;
   while (craftLeft > 0) {
     const dt = Math.min(craftLeft, CRAFT_SUBSTEP_SECONDS);
     craftLeft -= dt;
-    for (const [recipeId, assigned] of Object.entries(s.craftAssignment)) {
-      const recipe = RECIPE_BY_ID[recipeId];
-      if (!recipe || assigned <= 0 || !s.unlockedRecipes.includes(recipeId)) continue;
-      const cycle = recipe.craftTimeSeconds * craftFactor;
-      const runs = Math.min((assigned * dt) / cycle, affordableRuns(s, recipe.inputs));
-      if (runs <= 0) continue;
-      spendInputs(s, scaleAmounts(recipe.inputs, runs));
-      // Spending exactly `have / need × need` can leave -1e-15 dust; clamp so
-      // stock never displays (or compares) as negative.
-      for (const id of Object.keys(recipe.inputs)) {
-        if ((s.resources[id] ?? 0) < 0) s.resources[id] = 0;
+    for (const { assigned, cycle, inputs, outputs } of flows) {
+      let runs = (assigned * dt) / cycle;
+      for (const [id, n] of inputs) {
+        const cap = (s.resources[id] ?? 0) / n;
+        if (cap < runs) runs = cap;
       }
-      grantOutputs(s, scaleAmounts(recipe.outputs, runs * s.multipliers.craftOutput));
+      if (runs <= 0) continue;
+      for (const [id, n] of inputs) {
+        const next = (s.resources[id] ?? 0) - n * runs;
+        // Spending exactly `have / need × need` can leave -1e-15 dust; clamp
+        // so stock never displays (or compares) as negative.
+        s.resources[id] = next < 0 ? 0 : next;
+      }
+      const outFactor = runs * s.multipliers.craftOutput;
+      for (const [id, n] of outputs) {
+        s.resources[id] = (s.resources[id] ?? 0) + n * outFactor;
+      }
     }
   }
 

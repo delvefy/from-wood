@@ -1,7 +1,7 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
   import SearchBox from './SearchBox.svelte';
-  import { CATEGORY_ORDER, RECIPES } from '../content/recipes';
+  import { CATEGORY_ORDER, RECIPES, RECIPE_BY_ID } from '../content/recipes';
   import { RESOURCE_BY_ID } from '../content/resources';
   import { techTree } from '../content/tech';
   import { CRAFTER } from '../content/workers';
@@ -32,6 +32,18 @@
     ),
   );
 
+  // Raw cost is static per recipe, so expand it once up front — deriving it
+  // per card per render did a linear RECIPES.find each time. Only recipes
+  // with crafted inputs show it (raws-only recipes ARE their raw cost).
+  const rawEntriesByRecipe = new Map<string, [string, number][]>(
+    RECIPES.map((recipe) => {
+      const hasCraftedInput = Object.keys(recipe.inputs).some(
+        (id) => (RESOURCE_BY_ID[id]?.harvestAmount ?? 0) === 0,
+      );
+      return [recipe.id, hasCraftedInput ? Object.entries(rawCost(recipe)) : []];
+    }),
+  );
+
   const branchLabel = {
     magic: '✦ Magic',
     tech: '⚙ Tech',
@@ -45,7 +57,7 @@
   // common scan. Local state: leaving the tab resets it, same as search.
   let staffedOnly = $state(false);
   const staffedCount = $derived(
-    RECIPES.filter((r) => ($game.craftAssignment[r.id] ?? 0) > 0).length,
+    Object.entries($game.craftAssignment).filter(([id, n]) => n > 0 && RECIPE_BY_ID[id]).length,
   );
 
   // A recipe matches on its own name or on any output OR input material's
@@ -54,27 +66,30 @@
   function matchesQuery(recipe: Recipe, q: string): boolean {
     if (!q) return true;
     if (recipe.name.toLowerCase().includes(q)) return true;
-    return [...Object.keys(recipe.outputs), ...Object.keys(recipe.inputs)].some((id) =>
-      (RESOURCE_BY_ID[id]?.name ?? '').toLowerCase().includes(q),
-    );
+    const nameHas = (id: string) => (RESOURCE_BY_ID[id]?.name ?? '').toLowerCase().includes(q);
+    return Object.keys(recipe.outputs).some(nameHas) || Object.keys(recipe.inputs).some(nameHas);
   }
 
-  const groups = $derived(
-    CATEGORY_ORDER.map((cat) => {
+  // Rebuilt on every game tick, so it's a single pass over the catalog with
+  // Set membership — a filter per category with `.includes` per recipe made
+  // each rebuild O(categories × recipes × unlocked).
+  const unlockedRecipeSet = $derived(new Set($game.unlockedRecipes));
+  const groups = $derived.by(() => {
+    const byCategory = new Map(
+      CATEGORY_ORDER.map((cat) => [
+        cat.id,
+        { ...cat, unlocked: [] as Recipe[], locked: [] as Recipe[] },
+      ]),
+    );
+    for (const r of RECIPES) {
+      const group = byCategory.get(r.category);
+      if (!group || !matchesQuery(r, query)) continue;
       // Locked recipes can't be staffed, so the staffed filter empties them too.
-      const recipes = RECIPES.filter(
-        (r) =>
-          r.category === cat.id &&
-          matchesQuery(r, query) &&
-          (!staffedOnly || ($game.craftAssignment[r.id] ?? 0) > 0),
-      );
-      return {
-        ...cat,
-        unlocked: recipes.filter((r) => $game.unlockedRecipes.includes(r.id)),
-        locked: recipes.filter((r) => !$game.unlockedRecipes.includes(r.id)),
-      };
-    }).filter((g) => g.unlocked.length > 0 || g.locked.length > 0),
-  );
+      if (staffedOnly && ($game.craftAssignment[r.id] ?? 0) <= 0) continue;
+      (unlockedRecipeSet.has(r.id) ? group.unlocked : group.locked).push(r);
+    }
+    return [...byCategory.values()].filter((g) => g.unlocked.length > 0 || g.locked.length > 0);
+  });
   const anyUnlocked = $derived($game.unlockedRecipes.length > 0);
   const idle = $derived(idleCrafters($game));
 
@@ -102,16 +117,6 @@
 
   // Every recipe outputs exactly one item type; its icon stands in for the recipe.
   const outputId = (recipe: Recipe) => Object.keys(recipe.outputs)[0];
-
-  // Raw cost is static per recipe; shown only for recipes with crafted inputs.
-  function rawEntries(recipeId: string): [string, number][] {
-    const recipe = RECIPES.find((r) => r.id === recipeId)!;
-    const hasCraftedInput = Object.keys(recipe.inputs).some(
-      (id) => (RESOURCE_BY_ID[id]?.harvestAmount ?? 0) === 0,
-    );
-    if (!hasCraftedInput) return [];
-    return Object.entries(rawCost(recipe));
-  }
 </script>
 
 {#if !anyUnlocked}
@@ -152,7 +157,7 @@
         {#each group.unlocked as recipe (recipe.id)}
             {@const assigned = $game.craftAssignment[recipe.id] ?? 0}
             {@const duration = recipe.craftTimeSeconds * craftTimeFactor($account)}
-            {@const raw = rawEntries(recipe.id)}
+            {@const raw = rawEntriesByRecipe.get(recipe.id) ?? []}
             <div class="card craft">
               <button
                 class="chev remove"

@@ -132,6 +132,23 @@
   </div>
 </div>
 
+<h2>Workers</h2>
+{#each hireRows as row (row.config.name)}
+  <div class="row worker">
+    <span class="what">
+      <Icon id={row.config.icon} tint={false} /> {row.config.name}s <span class="muted">×{row.total}</span>
+    </span>
+    <span class="desc muted">{row.config.description}</span>
+    <button
+      class="hire"
+      disabled={$game.credits < nextHireCost(row.config, row.owned)}
+      onclick={() => row.hire()}
+    >
+      Hire {formatCredits(nextHireCost(row.config, row.owned))}
+    </button>
+  </div>
+{/each}
+
 <h2>Sell</h2>
 <div class="list">
   {#each sellGroups as group (group.id)}
@@ -159,23 +176,6 @@
   {/each}
 </div>
 
-<h2>Workers</h2>
-{#each hireRows as row (row.config.name)}
-  <div class="row worker">
-    <span class="what">
-      <Icon id={row.config.icon} tint={false} /> {row.config.name}s <span class="muted">×{row.total}</span>
-    </span>
-    <span class="desc muted">{row.config.description}</span>
-    <button
-      class="hire"
-      disabled={$game.credits < nextHireCost(row.config, row.owned)}
-      onclick={() => row.hire()}
-    >
-      Hire {formatCredits(nextHireCost(row.config, row.owned))}
-    </button>
-  </div>
-{/each}
-
 <h2>✨ Premium Emporium</h2>
 <p class="muted hint">Boosts bought with real money — free while the game is in development.</p>
 {#each PREMIUM as item (item.id)}
@@ -202,11 +202,16 @@
 <button class="reset" onclick={confirmReset}>Hard-reset save</button>
 
 <style>
+  /* Global h2 spacing is roomy; this tab stacks four sections, so tighten. */
+  h2 {
+    margin: 14px 0 6px;
+  }
+
   .balance {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 10px 12px;
+    gap: 5px;
+    padding: 8px 10px;
     background: var(--panel);
     border: 1px solid var(--gold);
     border-radius: var(--radius);
@@ -256,7 +261,7 @@
   .list {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
   }
 
   .group-head {
@@ -264,7 +269,7 @@
     justify-content: space-between;
     align-items: center;
     width: 100%;
-    padding: 8px 12px;
+    padding: 7px 12px;
     background: linear-gradient(
       135deg,
       color-mix(in srgb, var(--magic) 12%, var(--panel-2)),
@@ -280,7 +285,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 10px;
+    padding: 6px 10px;
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -339,6 +344,7 @@
 
   .hint {
     font-size: 0.8rem;
+    margin: 0 0 6px;
   }
 
   .row.premium {

@@ -273,10 +273,10 @@
     if (st === 'available' && canAfford($game, nodeCost(node))) queueResearch(node.id);
   }
 
-  function tapMaterial(e: Event, id: string) {
+  function tapMaterial(e: Event, id: string, fromTech: string) {
     e.stopPropagation(); // don't also queue/cancel the node behind the chip
     if (moved > 8) return;
-    openMaterial(id);
+    openMaterial(id, fromTech);
   }
 
   const activeNode = $derived(
@@ -454,7 +454,7 @@
                     class="pitem link"
                     class:short={($game.resources[id] ?? 0) < n}
                     title="Go to {RESOURCE_BY_ID[id]?.name}"
-                    onclick={(e) => tapMaterial(e, id)}
+                    onclick={(e) => tapMaterial(e, id, node.id)}
                   >
                     <Icon {id} />{formatNumber(n)}
                     {RESOURCE_BY_ID[id]?.name}

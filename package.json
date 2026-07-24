@@ -10,6 +10,7 @@
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "validate": "node --import tsx scripts/validate-content.ts",
     "simulate": "node --import tsx scripts/simulate-tournament.ts",
+    "unlock-sql": "node --import tsx scripts/gen-unlock-sql.ts",
     "icons": "node scripts/gen-icons.mjs",
     "fetch-icons": "node scripts/fetch-game-icons.mjs"
   },

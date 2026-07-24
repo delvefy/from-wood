@@ -1,5 +1,6 @@
 import { PREMIUM_BY_ID } from '../content/premium';
 import { account, type AccountData } from './account';
+import { prestigeCrafters, prestigeGatherers } from './prestige';
 import type { GameState, PremiumId } from './types';
 
 // All premium effects and base-worker bonuses are pure functions of the
@@ -37,12 +38,15 @@ export function bonusCrafters(a: AccountData): number {
   return premiumOwned(a, 'workerPack') + a.rewardCrafters;
 }
 
+// Totals add the prestige Expansion-tree worker packs on top: slot-local
+// (village only — tournament saves never own prestige nodes) and derived
+// from unlocked tech, so they never raise hire costs either.
 export function totalGatherers(s: GameState, a: AccountData): number {
-  return s.workers + bonusGatherers(a);
+  return s.workers + bonusGatherers(a) + prestigeGatherers(s.unlockedTech);
 }
 
 export function totalCrafters(s: GameState, a: AccountData): number {
-  return s.crafters + bonusCrafters(a);
+  return s.crafters + bonusCrafters(a) + prestigeCrafters(s.unlockedTech);
 }
 
 // Free during development: the UI confirms the (pretend) charge, then this

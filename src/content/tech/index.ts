@@ -1,10 +1,11 @@
 import type { GameMode } from '../../engine/mode';
-import type { TechBranch, TechEffect, TechNode } from '../../engine/types';
+import type { TechEffect, TechNode } from '../../engine/types';
 import { RESOURCE_BY_ID } from '../resources';
 import { CORE } from './core';
-import { fillerName } from './fillers';
+import { fillerName, type FillerBranch } from './fillers';
 import { MAJORS } from './majors';
 import { PATHS } from './paths';
+import { buildPrestigeTree } from './prestige';
 
 export type { MajorSpec, PathSpec } from './specs';
 
@@ -220,7 +221,7 @@ const TOURNAMENT_TREE: TechNode[] = AUTHORED.map((n) => ({
 // ---- Village tree -----------------------------------------------------------
 // The same 100 nodes on a scaled-up canvas, plus generated filler smalls
 // spliced into every edge until the tree hits exactly VILLAGE_NODE_TARGET.
-const VILLAGE_NODE_TARGET = 500;
+export const VILLAGE_NODE_TARGET = 500;
 const VILLAGE_SPACING = 150; // px between chain neighbours once fillers are in
 
 const edges = AUTHORED.flatMap((n) =>
@@ -273,7 +274,7 @@ const villageBase: Record<string, TechNode> = Object.fromEntries(
   ]),
 );
 
-const fillerCounters: Record<TechBranch, number> = { magic: 0, tech: 0, magitech: 0 };
+const fillerCounters: Record<FillerBranch, number> = { magic: 0, tech: 0, magitech: 0 };
 const villageFillers: TechNode[] = [];
 edges.forEach((edge, idx) => {
   const count = fillCounts[idx];
@@ -297,9 +298,10 @@ edges.forEach((edge, idx) => {
   // column and the whole peak above the arms — so the long cross-links read
   // as arm-colored near the base and magitech as they climb to the apex.
   // Thresholds are authored px, scaled to village canvas units.
-  const branchAt = (x: number, y: number): TechBranch =>
+  // Authored edges only ever join triangle branches, never prestige.
+  const branchAt = (x: number, y: number): FillerBranch =>
     parent.branch === child.branch
-      ? child.branch
+      ? (child.branch as FillerBranch)
       : Math.abs(x) <= 300 * VILLAGE_SCALE || y < -1400 * VILLAGE_SCALE
         ? 'magitech'
         : x < 0
@@ -386,6 +388,18 @@ if (VILLAGE_TREE.length !== VILLAGE_NODE_TARGET) {
   throw new Error(`village tree has ${VILLAGE_TREE.length} nodes, expected ${VILLAGE_NODE_TARGET}`);
 }
 
+// ---- Prestige (Expansion) tree ----------------------------------------------
+// Village-only follow-up tree, unlocked when all 500 base nodes are owned.
+// It renders on its own canvas (never mixed into the triangle), so it is NOT
+// part of techTree('main') — but its nodes live in the village id map below,
+// which is all the engine (queue, tick, multipliers) needs to research them.
+// The cost anchor is the completed-village craft bonus: all 500 nodes' flat
+// percents, applied to a 100-crafter Wonder fleet (see prestige.ts).
+export const PRESTIGE_TREE: TechNode[] = buildPrestigeTree({
+  researchTimeSeconds: RESEARCH_TIME_SECONDS,
+  craftOutputMultiplier: 1 + (VILLAGE_NODE_TARGET * NODE_BONUS_PERCENT.main) / 100,
+});
+
 // ---- Per-mode access --------------------------------------------------------
 // Costs and durations are baked into each tree's nodes, so consumers read
 // node.cost / node.researchTimeSeconds directly — just make sure the node
@@ -396,7 +410,7 @@ export const TECH_TREES: Record<GameMode, TechNode[]> = {
 };
 
 const TECH_BY_ID_BY_MODE: Record<GameMode, Record<string, TechNode>> = {
-  main: Object.fromEntries(VILLAGE_TREE.map((t) => [t.id, t])),
+  main: Object.fromEntries([...VILLAGE_TREE, ...PRESTIGE_TREE].map((t) => [t.id, t])),
   tournament: Object.fromEntries(TOURNAMENT_TREE.map((t) => [t.id, t])),
 };
 

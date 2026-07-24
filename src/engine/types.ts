@@ -42,15 +42,20 @@ export interface Recipe {
 // Tech effects are a discriminated union so the engine can apply them generically.
 // There are deliberately NO speed effects: progression only improves efficiency
 // (yield per gather cycle / output per craft job), in small additive percents.
+// workerPack is the prestige (Expansion tree) reward: permanent extra workers,
+// derived from the unlocked set like multipliers — never stored on the save.
 export type TechEffect =
   | { kind: 'unlockResource'; id: ResourceId }
   | { kind: 'unlockRecipe'; id: string }
   | { kind: 'gatherEfficiency'; resource: ResourceId | 'all'; percent: number }
-  | { kind: 'craftEfficiency'; percent: number };
+  | { kind: 'craftEfficiency'; percent: number }
+  | { kind: 'workerPack'; packs: number };
 
 // Skill-tree branches: magic rises up-left, tech up-right, magitech sits only
-// at the top of the triangle and requires nodes from both sides.
-export type TechBranch = 'magic' | 'tech' | 'magitech';
+// at the top of the triangle and requires nodes from both sides. prestige is
+// the post-completion Expansion tree — its own canvas, never mixed into the
+// triangle.
+export type TechBranch = 'magic' | 'tech' | 'magitech' | 'prestige';
 
 export interface TechNode {
   id: TechId;

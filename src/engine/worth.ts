@@ -1,6 +1,6 @@
 import { get } from 'svelte/store';
 import { RESOURCES } from '../content/resources';
-import { techTree } from '../content/tech';
+import { PRESTIGE_TREE, techTree } from '../content/tech';
 import { CRAFTER, GATHERER } from '../content/workers';
 import { getAccount } from './account';
 import { gameMode, type GameMode } from './mode';
@@ -13,12 +13,14 @@ const PRICE: Record<string, number> = Object.fromEntries(
 );
 
 // Sell value of each tech node's resource cost — per mode, since each mode
-// has its own tree (tournament runs a much cheaper price curve).
+// has its own tree (tournament runs a much cheaper price curve). The village
+// map includes the prestige Expansion nodes: their Wonder costs count toward
+// net worth like any other research spend.
 const TECH_VALUE: Record<GameMode, Record<string, number>> = Object.fromEntries(
   (['main', 'tournament'] as GameMode[]).map((mode) => [
     mode,
     Object.fromEntries(
-      techTree(mode).map((t) => [
+      (mode === 'main' ? [...techTree(mode), ...PRESTIGE_TREE] : techTree(mode)).map((t) => [
         t.id,
         Object.entries(t.cost).reduce((sum, [id, n]) => sum + n * (PRICE[id] ?? 0), 0),
       ]),

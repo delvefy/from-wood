@@ -5,14 +5,34 @@
 // the 500-node village and the 98-node tournament.
 import { RECIPES } from '../src/content/recipes';
 import { RESOURCES, RESOURCE_BY_ID } from '../src/content/resources';
-import { techTree } from '../src/content/tech';
+import { PRESTIGE_TREE, techTree } from '../src/content/tech';
+import type { TechNode } from '../src/engine/types';
 
 const errors: string[] = [];
 const warnings: string[] = [];
 
-const TREES = [
-  { label: 'village', expected: 500, nodes: techTree('main') },
-  { label: 'tournament', expected: 98, nodes: techTree('tournament') },
+interface TreeCheck {
+  label: string;
+  expected: number;
+  nodes: TechNode[];
+  // Cost-slot rule: base trees charge exactly 2 resources per node; prestige
+  // smalls charge 1 Wonder and capstones 2.
+  costSlots: { min: number; max: number };
+  // Unlock effects granted before this tree opens (the prestige tree assumes
+  // the whole village tree — and thus every Wonder recipe — is researched).
+  seedTech?: TechNode[];
+}
+
+const TREES: TreeCheck[] = [
+  { label: 'village', expected: 500, nodes: techTree('main'), costSlots: { min: 2, max: 2 } },
+  { label: 'tournament', expected: 98, nodes: techTree('tournament'), costSlots: { min: 2, max: 2 } },
+  {
+    label: 'prestige',
+    expected: 110,
+    nodes: PRESTIGE_TREE,
+    costSlots: { min: 1, max: 2 },
+    seedTech: techTree('main'),
+  },
 ];
 
 // ---- Uniqueness ---------------------------------------------------------------
@@ -52,7 +72,7 @@ for (const recipe of RECIPES) {
 
 // ---- Tech (per mode tree) -------------------------------------------------------
 const recipeIds = new Set(RECIPES.map((r) => r.id));
-for (const { label, expected, nodes: TECH } of TREES) {
+for (const { label, expected, nodes: TECH, costSlots, seedTech } of TREES) {
   const tag = (id: string) => `tech[${label}] ${id}`;
   const TECH_BY_ID: Record<string, (typeof TECH)[number]> = Object.fromEntries(
     TECH.map((t) => [t.id, t]),
@@ -70,9 +90,11 @@ for (const { label, expected, nodes: TECH } of TREES) {
     for (const [id] of Object.entries(node.cost)) {
       if (!RESOURCE_BY_ID[id]) errors.push(`${tag(node.id)} cost references unknown resource: ${id}`);
     }
-    // Same rule as recipes: every node charges exactly 2 resources.
-    if (Object.keys(node.cost).length !== 2) {
-      errors.push(`${tag(node.id)} cost has ${Object.keys(node.cost).length} resources (exactly 2 required)`);
+    const slots = Object.keys(node.cost).length;
+    if (slots < costSlots.min || slots > costSlots.max) {
+      errors.push(
+        `${tag(node.id)} cost has ${slots} resources (${costSlots.min}-${costSlots.max} required)`,
+      );
     }
     if (node.researchTimeSeconds <= 0) {
       errors.push(`${tag(node.id)} has non-positive research time`);
@@ -115,6 +137,12 @@ for (const { label, expected, nodes: TECH } of TREES) {
     const obtainable = new Set(
       RESOURCES.filter((r) => r.unlockedByDefault && r.harvestAmount > 0).map((r) => r.id),
     );
+    for (const node of seedTech ?? []) {
+      for (const effect of node.effects) {
+        if (effect.kind === 'unlockRecipe') recipesOn.add(effect.id);
+        if (effect.kind === 'unlockResource') obtainable.add(effect.id);
+      }
+    }
 
     // Fixpoint over obtainable resources given the currently unlocked recipes.
     const propagate = () => {

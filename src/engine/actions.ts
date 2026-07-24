@@ -6,6 +6,7 @@ import { CRAFTER, GATHERER } from '../content/workers';
 import { getAccount } from './account';
 import { gameMode } from './mode';
 import { sellPriceFactor, totalCrafters, totalGatherers } from './premium';
+import { villageTreeComplete } from './prestige';
 import { game } from './state';
 import { canAfford, spendInputs, tick } from './tick';
 import type { GameState, ResourceId, TechId, WorkerConfig } from './types';
@@ -154,6 +155,10 @@ export function queueResearch(techId: TechId): void {
   game.update((s) => {
     const node = techById(get(gameMode))[techId];
     if (!node || s.unlockedTech.includes(techId) || s.researchQueue.includes(techId)) return s;
+    // Prestige nodes sit in the village id map from day one (tier-1 smalls
+    // have no prerequisites), but the Expansion tree only opens once the
+    // whole base tree is researched.
+    if (node.branch === 'prestige' && !villageTreeComplete(s.unlockedTech)) return s;
     const satisfied = node.requires.every(
       (r) => s.unlockedTech.includes(r) || s.researchQueue.includes(r),
     );

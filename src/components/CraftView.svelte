@@ -48,6 +48,7 @@
     magic: '✦ Magic',
     tech: '⚙ Tech',
     magitech: '⚡ Magitech',
+    prestige: '🏗 Expansion', // unreachable today (prestige nodes unlock nothing), keeps the map total
   } as const;
 
   const query = $derived(($searchFilters.craft ?? '').trim().toLowerCase());

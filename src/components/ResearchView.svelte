@@ -3,19 +3,26 @@
   import Icon from './Icon.svelte';
   import ProgressBar from './ProgressBar.svelte';
   import { RESOURCE_BY_ID } from '../content/resources';
-  import { techById, techTree } from '../content/tech';
+  import { PRESTIGE_TREE, techById, techTree } from '../content/tech';
   import { queueResearch } from '../engine/actions';
   import { gameMode } from '../engine/mode';
+  import { villageTreeComplete } from '../engine/prestige';
   import { game } from '../engine/state';
   import { canAfford } from '../engine/tick';
   import type { TechNode } from '../engine/types';
-  import { formatDuration } from '../util/format';
+  import { formatDuration, formatNumber } from '../util/format';
   import { focusTech, openMaterial } from '../util/nav';
   import { settings } from '../util/settings';
 
   // Each mode renders its own tree: the 500-node village triangle or the
   // 100-node tournament one. Derived so a mode switch swaps the canvas live.
-  const tree = $derived(techTree($gameMode));
+  // Once the village triangle is fully researched it collapses into a banner
+  // (total bonuses, tap to reopen for viewing) and the canvas shows the
+  // prestige Expansion tree instead.
+  const villageDone = $derived($gameMode === 'main' && villageTreeComplete($game.unlockedTech));
+  let showBase = $state(false);
+  const prestigeView = $derived(villageDone && !showBase);
+  const tree = $derived(prestigeView ? PRESTIGE_TREE : techTree($gameMode));
   const byId = $derived(techById($gameMode));
 
   // ---- Camera: world point at the viewport center, plus zoom -----------------
@@ -76,10 +83,28 @@
   }
 
   function recenter() {
-    cam.x = 0;
-    cam.y = -60;
-    zoom = 1;
+    // The Expansion tree's first tier spans ±675px, so frame it a bit wider.
+    if (prestigeView) {
+      cam.x = 0;
+      cam.y = -160;
+      zoom = 0.55;
+    } else {
+      cam.x = 0;
+      cam.y = -60;
+      zoom = 1;
+    }
   }
+
+  // Recenter when the displayed tree swaps (base <-> Expansion) — the saved
+  // camera almost certainly points at the other canvas. A focus jump that
+  // swaps trees positions the camera itself, so it suppresses this once.
+  let lastTree: TechNode[] | undefined;
+  let focusJumped = false;
+  $effect(() => {
+    if (lastTree !== undefined && lastTree !== tree && !focusJumped) recenter();
+    focusJumped = false;
+    lastTree = tree;
+  });
 
   // Another view asked us to show a node (locked-item "Research X" links):
   // center the camera on it and pulse it briefly so the eye lands there.
@@ -90,6 +115,12 @@
     focusTech.set(null);
     const node = byId[id];
     if (!node) return;
+    // The target may live on the other canvas (base vs Expansion); swap first.
+    const wantBase = node.branch !== 'prestige';
+    if (villageDone && showBase !== wantBase) {
+      focusJumped = true;
+      showBase = wantBase;
+    }
     cam.x = node.x;
     cam.y = node.y;
     zoom = Math.max(zoom, 1);
@@ -286,6 +317,20 @@
 </script>
 
 <div class="wrap">
+  {#if villageDone}
+    <!-- The finished base tree collapses into this banner: it reports the
+         total bonuses all 500 nodes add up to and reopens the old canvas
+         (view-only in practice — everything in it is researched). -->
+    <button class="prestige-banner" class:back={showBase} onclick={() => (showBase = !showBase)}>
+      {#if showBase}
+        ⬆ Back to the Expansion tree
+      {:else}
+        🏆 Village tree complete — gather +{Math.round(($game.multipliers.gatherAll - 1) * 100)}%,
+        craft +{Math.round(($game.multipliers.craftOutput - 1) * 100)}%
+        <span class="banner-hint">view tree</span>
+      {/if}
+    </button>
+  {/if}
   <div class="slot">
     {#if activeNode}
       <div class="slot-head">
@@ -411,12 +456,12 @@
                     title="Go to {RESOURCE_BY_ID[id]?.name}"
                     onclick={(e) => tapMaterial(e, id)}
                   >
-                    <Icon {id} />{n}
+                    <Icon {id} />{formatNumber(n)}
                     {RESOURCE_BY_ID[id]?.name}
                   </button>
                 {:else}
                   <span class="pitem" class:short={($game.resources[id] ?? 0) < n}>
-                    <Icon {id} />{n}
+                    <Icon {id} />{formatNumber(n)}
                     {RESOURCE_BY_ID[id]?.name}
                   </span>
                 {/if}
@@ -430,9 +475,13 @@
       {/each}
     </div>
 
-    <span class="legend magic-l">✦ Magic</span>
-    <span class="legend magitech-l">⚡ Magitech</span>
-    <span class="legend tech-l">⚙ Tech</span>
+    {#if prestigeView}
+      <span class="legend prestige-l">🏗 Expansion — every node adds worker packs</span>
+    {:else}
+      <span class="legend magic-l">✦ Magic</span>
+      <span class="legend magitech-l">⚡ Magitech</span>
+      <span class="legend tech-l">⚙ Tech</span>
+    {/if}
 
     {#if readyNodes.length > 0}
       <button class="ready-jump" onclick={jumpToReady}>
@@ -456,6 +505,37 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
+  }
+
+  .prestige-banner {
+    flex: none;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 8px 12px;
+    border: 1px solid var(--tree-prestige);
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--tree-prestige) 12%, var(--panel));
+    color: var(--text);
+    font-size: 0.85rem;
+    font-weight: 600;
+    box-shadow: var(--shadow);
+  }
+
+  .prestige-banner.back {
+    background: var(--panel);
+    font-weight: 500;
+  }
+
+  .banner-hint {
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--muted);
+    text-decoration: underline dotted;
+    text-underline-offset: 2px;
   }
 
   .slot {
@@ -610,6 +690,10 @@
     stroke: var(--tree-magitech);
   }
 
+  .edge.done.prestige {
+    stroke: var(--tree-prestige);
+  }
+
   /* Zoomed-out LOD mini-cards: the DOM cards' silhouette (body, border,
      branch stripe, status colors) redrawn as cheap SVG rects, so the tree
      keeps looking like the tree at any zoom. Borders use non-scaling strokes
@@ -635,6 +719,10 @@
 
   .mini.magitech .mstripe {
     fill: var(--tree-magitech);
+  }
+
+  .mini.prestige .mstripe {
+    fill: var(--tree-prestige);
   }
 
   /* Dimmer than live cards but stronger than the DOM cards' 0.35 — panel
@@ -671,6 +759,11 @@
   .mini.owned.magitech .mbody {
     fill: color-mix(in srgb, var(--tree-magitech) 32%, var(--panel-2));
     stroke: var(--tree-magitech);
+  }
+
+  .mini.owned.prestige .mbody {
+    fill: color-mix(in srgb, var(--tree-prestige) 32%, var(--panel-2));
+    stroke: var(--tree-prestige);
   }
 
   .mini.available .mbody {
@@ -744,6 +837,10 @@
 
   .node.magitech::before {
     background: var(--tree-magitech);
+  }
+
+  .node.prestige::before {
+    background: var(--tree-prestige);
   }
 
   .node.locked {
@@ -916,6 +1013,13 @@
   .legend.tech-l {
     right: 8px;
     color: var(--tree-tech);
+  }
+
+  .legend.prestige-l {
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    color: var(--tree-prestige);
   }
 
   .ready-jump {

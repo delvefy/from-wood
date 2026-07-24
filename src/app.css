@@ -24,6 +24,7 @@
   --tree-magic: #8b3fd6;
   --tree-tech: #1878b8;
   --tree-magitech: #c98a10;
+  --tree-prestige: #2f9e56;
   --shadow: 0 2px 10px rgb(96 66 18 / 14%);
   --grad-primary: linear-gradient(135deg, #8b3fd6, #1878b8);
 
@@ -61,6 +62,7 @@
   --tree-magic: #c774ff;
   --tree-tech: #4dd2ff;
   --tree-magitech: #ffc94d;
+  --tree-prestige: #62e58b;
   --shadow: 0 4px 16px rgb(0 0 0 / 45%);
   --grad-primary: linear-gradient(135deg, #a855f7, #22d3ee);
 

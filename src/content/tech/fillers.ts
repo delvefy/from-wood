@@ -7,7 +7,11 @@ import type { TechBranch } from '../../engine/types';
 // Word choices deliberately avoid recreating any authored small-node name
 // (e.g. no Verdant+Whisper), since slugs must stay unique tree-wide —
 // `npm run validate` enforces that.
-const POOLS: Record<TechBranch, { adjectives: string[]; nouns: string[] }> = {
+// Fillers only ever land on the three triangle branches — the prestige tree
+// is generated separately and never gets fillers.
+export type FillerBranch = Exclude<TechBranch, 'prestige'>;
+
+const POOLS: Record<FillerBranch, { adjectives: string[]; nouns: string[] }> = {
   magic: {
     adjectives: [
       'Silvered', 'Moonlit', 'Hallowed', 'Fey', 'Sylvan', 'Runeswept',
@@ -61,7 +65,7 @@ const POOLS: Record<TechBranch, { adjectives: string[]; nouns: string[] }> = {
 };
 
 // Hands out the i-th filler name of a branch; unique for i < 576 per branch.
-export function fillerName(branch: TechBranch, i: number): string {
+export function fillerName(branch: FillerBranch, i: number): string {
   const { adjectives, nouns } = POOLS[branch];
   if (i >= adjectives.length * nouns.length) {
     throw new Error(`filler name pool exhausted for ${branch} (${i})`);

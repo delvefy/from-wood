@@ -17,7 +17,7 @@ import type { PathSpec } from './specs';
 // chains so the first crafting/resource unlocks sit right behind them.
 export const PATHS: PathSpec[] = [
   // ---- Tech branch (right, 8 smalls) ---------------------------------------------
-  { from: 'basic_tools', to: 'woodworking', branch: 'tech', cost: { wood: 6, water: 3 }, time: 45, names: ['Sharp Tools'], bow: 60 },
+  { from: 'basic_tools', to: 'woodworking', branch: 'tech', cost: { wood: 6, water: 3 }, time: 45, names: ['Sharp Tools'] },
   { from: 'woodworking', to: 'quarrying', branch: 'tech', cost: { wood: 12, water: 6 }, time: 90, names: ['Jigs & Fixtures'] },
   { from: 'quarrying', to: 'metallurgy', branch: 'tech', cost: { stone: 10, wood: 10 }, time: 150, names: ['Ore Roasting'] },
   { from: 'metallurgy', to: 'ironworking', branch: 'tech', cost: { copper_ingot: 4, stone_brick: 4 }, time: 300, names: ['Bloomery Draft'] },
@@ -26,15 +26,15 @@ export const PATHS: PathSpec[] = [
   { from: 'mechanisms', to: 'fine_machinery', branch: 'tech', cost: { gear: 8, glass: 5 }, time: 4800, names: ['Fine Tooling'] },
 
   // ---- Magic branch (left, 15 smalls) ----------------------------------------------
-  { from: 'basic_tools', to: 'rope_making', branch: 'magic', cost: { water: 5, wood: 3 }, time: 45, names: ['Wood Attunement'], bow: -60 },
+  { from: 'basic_tools', to: 'rope_making', branch: 'magic', cost: { water: 5, wood: 3 }, time: 45, names: ['Wood Attunement'] },
   { from: 'rope_making', to: 'sapcraft', branch: 'magic', cost: { wood: 16, water: 12 }, time: 300, names: ['Sap Flow'] },
   { from: 'rope_making', to: 'herbalism', branch: 'magic', cost: { water: 20, fiber: 12 }, time: 240, names: ['Verdant Whisper', 'Deep Roots'] },
-  { from: 'rope_making', to: 'weaving', branch: 'magic', cost: { fiber: 16, water: 16 }, time: 300, names: ['Spring Song', 'Moon Tides'], bow: -60 },
+  { from: 'rope_making', to: 'weaving', branch: 'magic', cost: { fiber: 16, water: 16 }, time: 300, names: ['Spring Song', 'Moon Tides'] },
   { from: 'herbalism', to: 'alchemy', branch: 'magic', cost: { herbs: 16, spirit_water: 6 }, time: 1200, names: ['Mortar & Pestle'] },
   { from: 'herbalism', to: 'ambercraft', branch: 'magic', cost: { resin: 12, herbal_extract: 4 }, time: 1200, names: ['Sap Harvest'] },
   { from: 'alchemy', to: 'scrivenery', branch: 'magic', cost: { herbal_extract: 6, salt: 8 }, time: 2400, names: ['Quill Cutting'] },
   { from: 'alchemy', to: 'sporecraft', branch: 'magic', cost: { salt: 10, herbal_extract: 6 }, time: 2400, names: ['Spore Prints'] },
-  { from: 'ambercraft', to: 'lunar_rites', branch: 'magic', cost: { amber_pearl: 4, spirit_water: 10 }, time: 2400, names: ['Night Vigils'], bow: 80 },
+  { from: 'ambercraft', to: 'lunar_rites', branch: 'magic', cost: { amber_pearl: 4, spirit_water: 10 }, time: 2400, names: ['Night Vigils'] },
   { from: 'sporecraft', to: 'vitalism', branch: 'magic', cost: { glowspore: 12, glow_paste: 4 }, time: 4800, names: ['Living Cultures'] },
   { from: 'lunar_rites', to: 'divination', branch: 'magic', cost: { moon_dew: 6, moon_elixir: 2 }, time: 4800, names: ['Tea Leaves'] },
   { from: 'scrivenery', to: 'crystal_attunement', branch: 'magic', cost: { enchanted_ink: 4, grimoire: 1 }, time: 4800, names: ['Crystal Songs'] },

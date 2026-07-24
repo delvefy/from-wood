@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "validate": "node --import tsx scripts/validate-content.ts",
+    "check-layout": "node --import tsx scripts/check-tech-layout.ts",
     "simulate": "node --import tsx scripts/simulate-tournament.ts",
     "unlock-sql": "node --import tsx scripts/gen-unlock-sql.ts",
     "icons": "node scripts/gen-icons.mjs",

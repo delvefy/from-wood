@@ -10,14 +10,16 @@ import { buildPrestigeTree } from './prestige';
 export type { MajorSpec, PathSpec } from './specs';
 
 // Two skill trees are generated from ONE authored source (core + majors +
-// paths), laid out as a big point-UP triangle (pyramid) on an infinite
-// canvas: the root (start) at the bottom-center of the base (0, 0), the
+// paths), laid out as a big point-UP triangle (pyramid) on a strict 150px
+// lattice: the root (start) at the bottom-center of the base (0, 0), the
 // Magic arm running left along the base into the bottom-left corner, the
 // Tech arm running right into the bottom-right corner (each arm's endgame
-// curls up its slant edge), and Magitech in the center — two spine columns
-// (spirit x=-240, matter x=+240) climbing from the base and converging to
+// climbs up its slant edge), and Magitech in the center — two spine columns
+// (spirit x=-300, matter x=+300) climbing from the base and converging to
 // the apex, where the wonders (end) crown the peak. Spine majors require one
-// major from each side.
+// major from each side. All chains interpolate evenly along straight edges,
+// so the whole tree reads as neat rows, columns and 45° spokes
+// (scripts/check-tech-layout.ts enforces the rules).
 //
 // - TOURNAMENT: the authored 98 nodes as-is — root, 48 majors, 49 small
 //   path nodes — on the compact authored canvas.
@@ -141,8 +143,8 @@ const pos: Record<string, { x: number; y: number }> = {};
 for (const n of CORE) pos[n.id] = { x: n.x, y: n.y };
 for (const m of MAJORS) pos[m.id] = { x: m.x, y: m.y };
 
-// Paths: chain of small nodes interpolated between the anchors, with a slight
-// alternating perpendicular wiggle so runs don't look laser-straight.
+// Paths: chain of small nodes interpolated evenly along the straight line
+// between the anchors, so runs read as clean lattice spokes.
 const rewire: Record<string, Record<string, string>> = {}; // to -> (from -> last chain node)
 const pathNodes: TechNode[] = [];
 for (const p of PATHS) {
@@ -151,16 +153,10 @@ for (const p of PATHS) {
   if (!a || !b) throw new Error(`tech path ${p.from} -> ${p.to}: unknown anchor`);
   const dx = b.x - a.x;
   const dy = b.y - a.y;
-  const len = Math.hypot(dx, dy);
-  const px = -dy / len;
-  const py = dx / len;
   let prev = p.from;
   p.names.forEach((name, i) => {
     const id = slug(name);
     const t = (i + 1) / (p.names.length + 1);
-    const wiggle =
-      p.bow ??
-      (i % 2 === (p.flip ? 1 : 0) ? 22 : -22) * (p.names.length > 1 ? 1 : 0);
     pathNodes.push({
       id,
       name,
@@ -169,8 +165,8 @@ for (const p of PATHS) {
       researchTimeSeconds: Math.round(p.time * PATH_STEP_GROWTH ** i),
       requires: [prev],
       branch: p.branch,
-      x: Math.round(a.x + dx * t + px * wiggle),
-      y: Math.round(a.y + dy * t + py * wiggle),
+      x: Math.round(a.x + dx * t),
+      y: Math.round(a.y + dy * t),
     });
     prev = id;
   });
@@ -283,9 +279,6 @@ edges.forEach((edge, idx) => {
   const child = villageBase[edge.to];
   const dx = child.x - parent.x;
   const dy = child.y - parent.y;
-  const len = Math.hypot(dx, dy);
-  const px = -dy / len;
-  const py = dx / len;
   // Authored seconds interpolate geometrically parent -> child, so filler
   // costs (via the curve) ramp smoothly across the edge. The cost MIX is the
   // PARENT's: always obtainable by the time the chain starts — the child's
@@ -313,7 +306,6 @@ edges.forEach((edge, idx) => {
     const branch = branchAt(parent.x + dx * t, parent.y + dy * t);
     const name = fillerName(branch, fillerCounters[branch]++);
     const id = slug(name);
-    const offset = i % 2 === 0 ? 26 : -26;
     villageFillers.push({
       id,
       name,
@@ -322,8 +314,8 @@ edges.forEach((edge, idx) => {
       researchTimeSeconds: tFrom * (tTo / tFrom) ** t,
       requires: [prev],
       branch,
-      x: Math.round(parent.x + dx * t + px * offset),
-      y: Math.round(parent.y + dy * t + py * offset),
+      x: Math.round(parent.x + dx * t),
+      y: Math.round(parent.y + dy * t),
     });
     prev = id;
   }

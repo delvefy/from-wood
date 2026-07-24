@@ -1,5 +1,6 @@
 import { del as idbDel, get as idbGet, set as idbSet } from 'idb-keyval';
 import { get } from 'svelte/store';
+import { techById, techTree } from '../content/tech';
 import { migrateLegacyPremium } from './account';
 import { computeMultipliers } from './multipliers';
 import { gameMode, type GameMode } from './mode';
@@ -7,7 +8,7 @@ import { createInitialState, game } from './state';
 import { tick } from './tick';
 import { resetTickClock } from './actions';
 import { clearTournamentMeta, getTournamentMeta } from './tournamentMeta';
-import type { GameState } from './types';
+import type { GameState, TechId } from './types';
 
 // One save slot per mode: the village and the current tournament run are
 // fully independent games sharing the same engine.
@@ -81,6 +82,7 @@ export async function loadGame(): Promise<void> {
   }
 
   const base = createInitialState();
+  const unlockedTech = migrateVanishedTech(union([], saved.unlockedTech), mode);
   // Merge over the initial state so saves survive new content/fields, and
   // union unlock lists so newly-default content is never lost.
   const s: GameState = {
@@ -91,9 +93,9 @@ export async function loadGame(): Promise<void> {
     craftAssignment: { ...(saved.craftAssignment ?? {}) },
     unlockedResources: union(base.unlockedResources, saved.unlockedResources),
     unlockedRecipes: union(base.unlockedRecipes, saved.unlockedRecipes),
-    unlockedTech: union([], saved.unlockedTech),
-    researchQueue: [...(saved.researchQueue ?? [])],
-    multipliers: computeMultipliers(saved.unlockedTech ?? [], mode),
+    unlockedTech,
+    researchQueue: (saved.researchQueue ?? []).filter((id) => techById(mode)[id]),
+    multipliers: computeMultipliers(unlockedTech, mode),
   };
 
   // Legacy saves kept premium purchases inside the slot; move them onto the
@@ -144,4 +146,29 @@ export async function wipeLocalState(): Promise<void> {
 
 function union<T>(base: T[], saved: T[] | undefined): T[] {
   return Array.from(new Set([...base, ...(saved ?? [])]));
+}
+
+// Layout reshuffles regenerate the village fillers' ids (their names depend
+// on edge geometry), which would silently strip those researched nodes from
+// older saves. Every small node grants the same flat bonus, so the fair
+// repair is one-for-one: drop ids that no longer exist and grant the same
+// number of reachable non-major nodes in tree order. Authored ids (root,
+// majors, path smalls, prestige) are stable, so this only ever touches
+// fillers — and it's a no-op for saves written against the current tree.
+function migrateVanishedTech(unlocked: TechId[], mode: GameMode): TechId[] {
+  const byId = techById(mode);
+  const known = unlocked.filter((id) => byId[id]);
+  let lost = unlocked.length - known.length;
+  if (lost === 0) return unlocked;
+  const owned = new Set(known);
+  const tree = techTree(mode);
+  while (lost > 0) {
+    const next = tree.find(
+      (n) => !n.major && !owned.has(n.id) && n.requires.every((r) => owned.has(r)),
+    );
+    if (!next) break;
+    owned.add(next.id);
+    lost--;
+  }
+  return Array.from(owned);
 }

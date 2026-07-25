@@ -8,3 +8,9 @@ verify_jwt = false
 # deleting anything.
 [functions.delete-account]
 verify_jwt = true
+
+# revenuecat-webhook is called by RevenueCat's servers, which have no Supabase
+# JWT; it authenticates the shared secret in the Authorization header itself
+# (must match the RC_WEBHOOK_SECRET function secret).
+[functions.revenuecat-webhook]
+verify_jwt = false

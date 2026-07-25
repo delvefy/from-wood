@@ -43,41 +43,59 @@ system must be solid first.
 
 ## Phase 2 — Wrap the game in Capacitor
 
-- [ ] `npm i @capacitor/core @capacitor/android && npm i -D @capacitor/cli`
-- [ ] `npx cap init "From Wood" com.yourdomain.fromwood --web-dir=dist`
-      (pick the app ID carefully — **it can never be changed** on Play)
-- [ ] `npx cap add android`, then `npm run build && npx cap sync` becomes the
-      build loop.
+- [x] Capacitor installed; app ID **`victorblack.fromwood`** (permanent),
+      config in `capacitor.config.ts`, android platform committed.
+- [x] Build loop: `npm run build:android` (CAP_BUILD=1 vite build + cap sync —
+      relative asset base, PWA/service worker disabled in the native shell).
+- [x] Android back button minimizes the app (`src/main.ts`).
 - [ ] Install Android Studio; verify the game runs on an emulator and a real
       phone (touch targets, safe areas/notch, back button behavior).
+      Open the project with `npx cap open android`.
 - [ ] Generate a **signed release keystore** and back it up somewhere safe —
       losing it means losing the app. Enroll in Play App Signing (default).
-- [ ] Keep the PWA build working — nothing about Capacitor breaks the web
-      version.
+- [x] PWA/web build untouched (plain `npm run build` as before).
 
 ## Phase 3 — Real purchases (RevenueCat + Play Billing)
 
-- [ ] In Play Console, create the in-app products matching
-      `src/content/premium.ts`:
-  - `gatherManager`, `craftManager`, `marketManager` → **non-consumable**
-    (one-time) products
-  - `gathererPack`, `crafterPack` → **consumable** (repeatable) products
-- [ ] Sanity-check pricing: $50 for a manager is very high for an idle game —
-      the file itself says prices are placeholders. Decide real prices now;
-      changing them later is easy, but first impressions matter.
-- [ ] Connect the Play Console app to RevenueCat, mirror the products there.
-- [ ] `npm i @revenuecat/purchases-capacitor`
-- [ ] Replace the free grant in `buyPremium()` (`src/engine/premium.ts`) with:
-      purchase via RevenueCat → on success, grant the item on the account
-      (existing code path) → cloud save sync persists it.
-  - Keep the current free-grant path behind a dev flag for local/web testing.
-- [ ] Identify the RevenueCat user with the Supabase user ID so purchases
-      survive reinstalls and follow the account.
-- [ ] (Later hardening, not launch-blocking) RevenueCat webhook → Supabase
-      Edge Function to grant entitlements server-side instead of trusting the
-      client.
+Code is DONE and server-authoritative from day one:
+
+- `src/lib/purchases.ts` — RevenueCat SDK: identity pinned to the Supabase
+  user id, purchase flow, restore-purchases, ledger polling.
+- `supabase/migrations/0011_premium_purchases.sql` — RLS-locked purchases
+  ledger; clients read their own rows, only the webhook writes.
+- `supabase/functions/revenuecat-webhook` — verifies a shared secret, grants
+  on purchase, revokes on refund, re-grants on refund-reversal, re-homes
+  rows on TRANSFER (reinstall restore), idempotent on retries.
+- Client treats ledger aggregates as truth (`refreshPremium`), same pattern
+  as tournament reward workers; dev builds keep a free local grant
+  (`devGrantPremium`); the public web build shows the catalog read-only and
+  purchases made in the app apply there after sign-in.
+- Buying requires an email-backed sign-in (never hang money off an anonymous
+  identity); purchases survive hard reset.
+
+Remaining setup (dashboards, in this order):
+
+- [ ] Apply migration 0011 + deploy the webhook:
+      `supabase db push` (or apply 0011 manually), then
+      `supabase functions deploy revenuecat-webhook`.
+- [ ] Generate a long random secret; set it both sides:
+      `supabase secrets set RC_WEBHOOK_SECRET=<value>` and in RevenueCat →
+      Integrations → Webhooks (Authorization header value must be identical).
+      Webhook URL: `https://mawhmuprhprzmdgjzqve.supabase.co/functions/v1/revenuecat-webhook`
+- [ ] In Play Console, create the 4 in-app products (ids must match
+      `src/content/premium.ts` exactly):
+  - `gather_manager`, `craft_manager`, `market_manager` → one-time,
+    **non-consumable** ($49.99)
+  - `worker_pack` → one-time, **consumable** ($9.99)
+- [ ] In RevenueCat: create the project + Play Store app, connect the Play
+      service credentials, add the same 4 products (mark `worker_pack`
+      consumable so it can be re-bought).
+- [ ] Paste the RevenueCat **public Google SDK key** (goog_…) into
+      `REVENUECAT_GOOGLE_API_KEY` in `src/lib/purchases.ts` (safe to commit,
+      like the Supabase publishable key).
 - [ ] Test with **License Testing** accounts in Play Console (test cards, no
-      real charges).
+      real charges): buy each product, check the row lands in `purchases`,
+      refund from Play Console and confirm the item is revoked on next sync.
 
 ## Phase 4 — Play Store compliance & listing
 
@@ -126,12 +144,12 @@ system must be solid first.
 
 ## Open decisions
 
-| Decision | Options | Leaning |
-| --- | --- | --- |
-| Play account type | Personal (12 testers × 14 days) vs Organization (D-U-N-S) | Organization if you have a registered company |
-| App ID | `com.<yourdomain>.fromwood` — permanent | Decide before `cap init` |
-| Real prices | Current $50/$5 are placeholders | Rethink the $50 tier |
-| Server-side entitlements | Trust client at launch vs webhook Edge Function | Client at launch, webhook soon after |
+| Decision | Outcome |
+| --- | --- |
+| Play account type | **Personal** — plan for the 12-testers × 14-days closed test |
+| App ID | **`victorblack.fromwood`** (baked in, permanent) |
+| Real prices | **Keeping** $49.99 managers / $9.99 worker pack |
+| Server-side entitlements | **Webhook from day one** (purchases ledger, migration 0011) |
 
 ## Rough effort estimate
 

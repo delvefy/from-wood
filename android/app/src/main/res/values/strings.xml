@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">From Wood</string>
+    <string name="title_activity_main">From Wood</string>
+    <string name="package_name">victorblack.fromwood</string>
+    <string name="custom_url_scheme">victorblack.fromwood</string>
+</resources>

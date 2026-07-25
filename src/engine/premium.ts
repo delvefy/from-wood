@@ -49,9 +49,12 @@ export function totalCrafters(s: GameState, a: AccountData): number {
   return s.crafters + bonusCrafters(a) + prestigeCrafters(s.unlockedTech);
 }
 
-// Free during development: the UI confirms the (pretend) charge, then this
-// just grants the item on the account.
-export function buyPremium(id: PremiumId): void {
+// Dev-only free grant, for testing effects without a store. Real purchases go
+// through src/lib/purchases.ts (RevenueCat → webhook → purchases ledger) and
+// land on the account via refreshPremium; production builds never grant
+// locally — a forged local grant would die on the next server refresh anyway.
+export function devGrantPremium(id: PremiumId): void {
+  if (!import.meta.env.DEV) return;
   const item = PREMIUM_BY_ID[id];
   if (!item) return;
   account.update((a) => {

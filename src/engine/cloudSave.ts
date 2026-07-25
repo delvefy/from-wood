@@ -1,6 +1,7 @@
 import { del as idbDel, get as idbGet, set as idbSet } from 'idb-keyval';
 import { get } from 'svelte/store';
 import type { User } from '@supabase/supabase-js';
+import { refreshPremium } from '../lib/purchases';
 import { supabase } from '../lib/supabase';
 import { getAccount, replaceAccountData, type AccountData } from './account';
 import { resetTickClock } from './actions';
@@ -101,9 +102,20 @@ async function handleAuthUser(user: User | null): Promise<void> {
   }
   if (owner === null || owner === user.id) {
     await adoptNewerCloudSave();
-    return;
+  } else {
+    await switchOwner(owner, user.id);
   }
-  await switchOwner(owner, user.id);
+
+  // Premium ownership is server truth (the purchases ledger): refresh AFTER
+  // the payload apply so whatever premium counts the blob carried can never
+  // outlive this sync. Best-effort — offline keeps the local bridge copy.
+  if (isEmailUser) {
+    try {
+      await refreshPremium();
+    } catch (err) {
+      console.warn('cloud save: premium refresh failed', err);
+    }
+  }
 }
 
 // Same account as the local save: just check whether another device pushed a

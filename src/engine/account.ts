@@ -65,6 +65,20 @@ export function migrateLegacyPremium(premium: Record<PremiumId, number>): void {
   });
 }
 
+// Overwrite the premium counts with the server-computed totals (aggregated
+// from the purchases ledger by src/lib/purchases.ts). Same server-truth deal
+// as reward workers below: locally forged purchases never survive contact
+// with the server, and refunded ones get revoked. The local copy only
+// bridges offline sessions.
+export function setPremiumCounts(premium: Record<PremiumId, number>): void {
+  account.update((a) => {
+    const same =
+      Object.keys(premium).length === Object.keys(a.premium).length &&
+      Object.entries(premium).every(([id, n]) => a.premium[id] === n);
+    return same ? a : { ...a, premium: { ...premium } };
+  });
+}
+
 // Overwrite the reward workers with the server-computed totals. Called on
 // every tournament state refresh, so locally forged values never survive
 // contact with the server.

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:android": "CAP_BUILD=1 vite build && cap sync android",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "validate": "node --import tsx scripts/validate-content.ts",
@@ -16,10 +17,15 @@
     "fetch-icons": "node scripts/fetch-game-icons.mjs"
   },
   "dependencies": {
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/core": "^8.4.2",
+    "@revenuecat/purchases-capacitor": "^13.2.4",
     "@supabase/supabase-js": "^2.110.5",
     "idb-keyval": "^6.2.2"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.4.2",
+    "@capacitor/cli": "^8.4.2",
     "@sveltejs/vite-plugin-svelte": "^6.0.0",
     "svelte": "^5.0.0",
     "svelte-check": "^4.1.0",

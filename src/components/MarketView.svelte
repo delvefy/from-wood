@@ -12,13 +12,15 @@
   } from '../engine/actions';
   import { account } from '../engine/account';
   import {
-    buyPremium,
+    devGrantPremium,
     premiumOwned,
     sellPriceFactor,
     totalCrafters,
     totalGatherers,
   } from '../engine/premium';
   import { hardReset } from '../engine/hardReset';
+  import { account as authInfo } from '../lib/supabase';
+  import { isNativeApp, purchasePremium, restoreNativePurchases } from '../lib/purchases';
   import type { PremiumItem, ResourceDef } from '../engine/types';
   import { game } from '../engine/state';
   import Icon from './Icon.svelte';
@@ -93,17 +95,57 @@
     return `$${price.toFixed(2)}`;
   }
 
-  // Free while the game is in development, but keep the spending ritual.
-  function confirmBuyPremium(item: PremiumItem) {
-    if (confirm(`Are you sure you want to spend ${formatUsd(item.priceUsd)} on ${item.name}?`)) {
-      buyPremium(item.id);
+  // Three shop modes: the native app sells through Google Play (RevenueCat),
+  // dev builds keep the free grant for testing, and the public web build only
+  // shows the catalog — purchases bought in the app apply here after sign-in.
+  const devShop = import.meta.env.DEV && !isNativeApp;
+  const canBuy = isNativeApp || devShop;
+
+  let buying = $state<string | null>(null);
+  let restoring = $state(false);
+
+  async function handleBuyPremium(item: PremiumItem) {
+    if (devShop) {
+      if (confirm(`Are you sure you want to spend ${formatUsd(item.priceUsd)} on ${item.name}?`)) {
+        devGrantPremium(item.id);
+      }
+      return;
+    }
+    if (!isNativeApp || buying) return;
+    if (!$authInfo.email) {
+      alert('Sign in with an email account first (Settings → Account) — purchases are tied to your account.');
+      return;
+    }
+    buying = item.id;
+    try {
+      const outcome = await purchasePremium(item);
+      if (outcome === 'pending') {
+        alert('Purchase complete! Your item will appear within a minute or two.');
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Purchase failed.');
+    } finally {
+      buying = null;
+    }
+  }
+
+  async function handleRestore() {
+    if (restoring) return;
+    restoring = true;
+    try {
+      await restoreNativePurchases();
+      alert('Done — any purchases on your Google account are being restored.');
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Restore failed.');
+    } finally {
+      restoring = false;
     }
   }
 
   async function confirmReset() {
     if (
       confirm(
-        'Wipe EVERYTHING and start over? This also removes premium purchases, tournament rewards, and your tournament entry.',
+        'Wipe EVERYTHING and start over? This removes tournament rewards and your tournament entry. Premium items bought with real money stay on your signed-in account and are restored automatically.',
       )
     )
       await hardReset();
@@ -177,7 +219,13 @@
 </div>
 
 <h2>✨ Premium Emporium</h2>
-<p class="muted hint">Boosts bought with real money — free while the game is in development.</p>
+{#if isNativeApp}
+  <p class="muted hint">Boosts bought with real money, charged through Google Play. They stick to your account — sign in on any device and they follow.</p>
+{:else if devShop}
+  <p class="muted hint">Boosts bought with real money — free in this dev build.</p>
+{:else}
+  <p class="muted hint">Boosts bought with real money — available in the Android app. Purchases apply to your account here too.</p>
+{/if}
 {#each PREMIUM as item (item.id)}
   {@const owned = premiumOwned($account, item.id)}
   <div class="row worker premium">
@@ -191,12 +239,21 @@
     {#if item.unique && owned > 0}
       <button class="buy" disabled>Owned</button>
     {:else}
-      <button class="buy" onclick={() => confirmBuyPremium(item)}>
-        Buy {formatUsd(item.priceUsd)}
+      <button
+        class="buy"
+        disabled={!canBuy || buying !== null}
+        onclick={() => handleBuyPremium(item)}
+      >
+        {buying === item.id ? 'Buying…' : `Buy ${formatUsd(item.priceUsd)}`}
       </button>
     {/if}
   </div>
 {/each}
+{#if isNativeApp}
+  <button class="restore" disabled={restoring} onclick={handleRestore}>
+    {restoring ? 'Restoring…' : 'Restore purchases'}
+  </button>
+{/if}
 
 <h2>Danger zone</h2>
 <button class="reset" onclick={confirmReset}>Hard-reset save</button>
@@ -365,6 +422,15 @@
     background: var(--panel-2);
     color: var(--muted);
     border: 1px solid var(--border);
+  }
+
+  .restore {
+    width: 100%;
+    margin-top: 6px;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.8rem;
   }
 
   .reset {

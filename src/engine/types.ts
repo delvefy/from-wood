@@ -81,16 +81,19 @@ export interface WorkerConfig {
   startingCount: number; // free gather slots at game start
 }
 
-// A real-money shop item. Purchases are free during development but still go
-// through a confirm dialog; ownership counts live on the account (not the save
-// slot), and effects are derived from them, never stored.
+// A real-money shop item. On Android these are Google Play in-app products
+// bought through RevenueCat (src/lib/purchases.ts); ownership is server truth
+// (the purchases ledger, migration 0011) mirrored onto the account. Dev
+// builds keep a free local grant. Effects are derived from the counts, never
+// stored.
 export interface PremiumItem {
   id: PremiumId;
   name: string;
   icon: string;
   description: string;
-  priceUsd: number; // display-only for now — nothing is actually charged
+  priceUsd: number; // display only — the store's localized price is what's charged
   unique: boolean; // true = own at most once (managers); false = repeatable (packs)
+  productId: string; // store product id (Play Console / App Store Connect / RevenueCat)
 }
 
 export interface Multipliers {

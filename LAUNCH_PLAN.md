@@ -84,9 +84,12 @@ system must be solid first.
 - [ ] **Privacy policy** — required (you collect emails via Supabase auth).
       A simple hosted page is fine; generators exist. Link it in Play Console
       and inside the app.
-- [ ] **Account deletion** — Google requires apps with account creation to
+- [x] **Account deletion** — Google requires apps with account creation to
       offer in-app account deletion *and* a web URL for deletion requests.
-      Add a "Delete account" button (Supabase: delete user + their saves).
+      Done: Settings → Account → Danger zone (password-confirmed; the
+      delete-account Edge Function removes the auth user and everything
+      cascades). The live web app's Settings tab doubles as the web URL.
+      Remember to `supabase functions deploy delete-account`.
 - [ ] Fill the **Data safety** form (declares: email, gameplay data, no ads).
 - [ ] Fill the **content rating** questionnaire (IARC) — an idle crafting game
       with IAP will land at Everyone/PEGI 3, but you must declare the IAP.

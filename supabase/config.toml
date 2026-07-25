@@ -2,3 +2,9 @@
 # require a JWT; it protects itself (neutral responses, service-role lookups).
 [functions.reset-password]
 verify_jwt = false
+
+# delete-account keeps the default gateway JWT check: only a signed-in player
+# can reach it, and the function re-verifies their password itself before
+# deleting anything.
+[functions.delete-account]
+verify_jwt = true

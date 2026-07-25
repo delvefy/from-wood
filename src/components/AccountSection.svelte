@@ -9,11 +9,13 @@
     signOutAccount,
   } from '../lib/supabase';
   import { flushCloudSave } from '../engine/cloudSave';
+  import { deleteAccount } from '../engine/deleteAccount';
   import { accountMode } from '../util/nav';
 
   let email = $state('');
   let password = $state('');
   let newPassword = $state('');
+  let deletePassword = $state('');
   let busy = $state(false);
   let notice = $state<string | null>(null);
   let error = $state<string | null>(null);
@@ -56,6 +58,22 @@
     });
   }
 
+  function onDeleteAccount(event: SubmitEvent) {
+    event.preventDefault();
+    if (
+      !confirm(
+        'Permanently delete your account? This erases your cloud save, tournament history, ' +
+          'and premium purchases on every device. It cannot be undone.',
+      )
+    )
+      return;
+    void run(async () => {
+      await deleteAccount(deletePassword);
+      deletePassword = '';
+      return 'Account deleted.';
+    });
+  }
+
   function onSignOut() {
     void run(async () => {
       // Back the account's progress up first so it survives the sign-out;
@@ -89,6 +107,19 @@
       <button class="primary" disabled={busy || newPassword.length === 0}>Change password</button>
     </form>
     <button class="secondary" disabled={busy} onclick={onSignOut}>Sign out</button>
+    <form class="danger-zone" onsubmit={onDeleteAccount}>
+      <p class="small danger-title">Danger zone</p>
+      <label class="small muted" for="account-delete-password">
+        Confirm your password to permanently delete this account
+      </label>
+      <input
+        id="account-delete-password"
+        type="password"
+        autocomplete="current-password"
+        bind:value={deletePassword}
+      />
+      <button class="danger" disabled={busy || deletePassword.length === 0}>Delete account</button>
+    </form>
   </div>
 {:else}
   <div class="panel">
@@ -215,6 +246,25 @@
     text-decoration: underline;
     padding: 2px;
     align-self: flex-start;
+  }
+
+  .danger-zone {
+    border-top: 1px solid var(--border);
+    padding-top: 10px;
+  }
+
+  .danger-title {
+    color: var(--danger);
+    font-weight: 600;
+  }
+
+  .danger {
+    background: none;
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    font-weight: 600;
+    padding: 10px;
+    border-radius: var(--radius-sm);
   }
 
   button:disabled {

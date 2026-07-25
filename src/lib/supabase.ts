@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, FunctionsHttpError } from '@supabase/supabase-js';
 import { writable } from 'svelte/store';
 import { activeTab } from '../util/nav';
 
@@ -88,6 +88,34 @@ export async function signOutAccount(): Promise<void> {
 export async function changePassword(newPassword: string): Promise<void> {
   const { error } = await supabase.auth.updateUser({ password: newPassword });
   if (error) throw authError(error, 'Password change failed');
+}
+
+// Ask the delete-account Edge Function to permanently delete the signed-in
+// account. It re-verifies the password server-side, then removes the auth
+// user — profiles, saves, entries, and scores all cascade from that row.
+// Afterwards only the local session is dropped; wiping the device's own state
+// is orchestrated in engine/deleteAccount.ts.
+export async function requestAccountDeletion(password: string): Promise<void> {
+  const { error } = await supabase.functions.invoke('delete-account', {
+    body: { password },
+  });
+  if (error) {
+    // Non-2xx responses surface as a generic FunctionsHttpError; the real
+    // reason ("Incorrect password.") is in the response body.
+    let message = 'Account deletion failed';
+    if (error instanceof FunctionsHttpError) {
+      try {
+        message = ((await error.context.json()) as { error?: string }).error ?? message;
+      } catch {
+        // keep the fallback message
+      }
+    }
+    throw new Error(message);
+  }
+  // The server-side user is already gone, so a global sign-out would 401;
+  // local scope just discards this device's session (supabase-js ignores the
+  // dead-user error and still emits SIGNED_OUT).
+  await supabase.auth.signOut({ scope: 'local' });
 }
 
 // Ask the reset-password Edge Function to email a one-time recovery link.

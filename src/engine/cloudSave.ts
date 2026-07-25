@@ -180,6 +180,24 @@ export function maybeCloudPush(trigger: 'interval' | 'hide' = 'interval'): void 
   queue = queue.then(pushNow).catch(() => {});
 }
 
+// After account deletion: make the device forget who owned the local save.
+// Clears the in-memory identity immediately (so an already-queued push can't
+// write on the deleted account's behalf), then drops the owner marker and its
+// stash behind any in-flight cloud work.
+export async function forgetCloudIdentity(): Promise<void> {
+  currentUid = null;
+  isEmailUser = false;
+  lastPushAt = 0;
+  lastPushedFingerprint = '';
+  await (queue = queue
+    .then(async () => {
+      const owner = localStorage.getItem(OWNER_KEY);
+      if (owner) await idbDel(stashKey(owner));
+      localStorage.removeItem(OWNER_KEY);
+    })
+    .catch(() => {}));
+}
+
 // Immediate backup before signing out, so the account can pick its progress
 // back up on the next sign-in (this device or another).
 export async function flushCloudSave(): Promise<void> {

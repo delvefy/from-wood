@@ -1,7 +1,13 @@
 <script lang="ts">
+  import { RESOURCE_BY_ID } from '../content/resources';
+  import { techById } from '../content/tech';
+  import { GATHERER } from '../content/workers';
+  import { nextHireCost } from '../engine/actions';
+  import { gameMode } from '../engine/mode';
   import { game } from '../engine/state';
+  import { formatCredits } from '../util/format';
   import { dismissGuide, settings } from '../util/settings';
-  import { openTech } from '../util/nav';
+  import { activeTab, openTech } from '../util/nav';
 
   // The opening chain the guide walks: root → its tech-path small → the
   // first crafting unlock. Ids match content/tech (paths.ts names, slugified).
@@ -14,16 +20,28 @@
   const gatheredAny = $derived(($game.resources.wood ?? 0) > 0 || ($game.resources.water ?? 0) > 0);
 
   const step1Done = $derived(assignedAny || gatheredAny);
-  const step2Done = $derived(owned.has(ROOT));
-  const step3Done = $derived(owned.has(CRAFTING));
+  const step2Done = $derived($game.workers > GATHERER.startingCount);
+  const step3Done = $derived(owned.has(ROOT));
+  const step4Done = $derived(owned.has(CRAFTING));
 
-  const show = $derived(!$settings.guideDismissed && !step3Done);
-  const nextTech = $derived(!step2Done ? ROOT : !owned.has(OPENER) ? OPENER : CRAFTING);
+  const show = $derived(!$settings.guideDismissed && !step4Done);
+  const nextTech = $derived(!step3Done ? ROOT : !owned.has(OPENER) ? OPENER : CRAFTING);
+
+  // Prices come from the live content so the guide can't drift out of date:
+  // the baked tree cost (not the authored seed cost) and the real hire curve.
+  const rootCost = $derived(
+    Object.entries(techById($gameMode)[ROOT].cost)
+      .map(([id, n]) => `${n} ${RESOURCE_BY_ID[id]?.name.toLowerCase() ?? id}`)
+      .join(' + '),
+  );
+  // The step asks for the FIRST paid hire, so quote that price — not the
+  // moving nextHireCost, which would tick up once the step is done.
+  const hirePrice = formatCredits(nextHireCost(GATHERER, GATHERER.startingCount));
 
   // Once crafting is unlocked the player has the loop — retire the guide for
   // good so fresh tournament runs don't resurface it.
   $effect(() => {
-    if (step3Done && !$settings.guideDismissed) dismissGuide();
+    if (step4Done && !$settings.guideDismissed) dismissGuide();
   });
 </script>
 
@@ -40,16 +58,22 @@
       </li>
       <li class:done={step2Done}>
         <span class="mark">{step2Done ? '✓' : '2'}</span>
-        Research <strong>Basic Tools</strong> (10 wood + 10 water — move your gatherer
-        between the two).
+        Hire a second gatherer ({hirePrice}) — sell spare wood or water in the
+        <strong>Market</strong> for credits.
+      </li>
+      <li class:done={step3Done}>
+        <span class="mark">{step3Done ? '✓' : '3'}</span>
+        Research <strong>Basic Tools</strong> ({rootCost}).
       </li>
       <li>
-        <span class="mark">3</span>
+        <span class="mark">4</span>
         Research <strong>Sharp Tools</strong>, then <strong>Woodworking</strong> to start
         crafting.
       </li>
     </ol>
-    {#if step1Done}
+    {#if step1Done && !step2Done}
+      <button class="go" onclick={() => activeTab.set('market')}>▶ Show me the Market</button>
+    {:else if step2Done}
       <button class="go" onclick={() => openTech(nextTech)}>▶ Show me the next research</button>
     {/if}
   </div>

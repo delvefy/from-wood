@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { setAuthIntent } from '../engine/cloudSave';
   import { registerWithEmail, requestPasswordReset, signInWithEmail } from '../lib/supabase';
   import { closeAuth, openAuth } from '../util/nav';
 
@@ -30,11 +31,19 @@
   function onSubmit(event: SubmitEvent) {
     event.preventDefault();
     void run(async () => {
-      if (mode === 'signup') {
-        done = await registerWithEmail(email.trim(), password);
-      } else {
-        await signInWithEmail(email.trim(), password);
-        done = 'Signed in.';
+      // Tell the cloud-save layer what this auth event means: signup keeps
+      // the local progress, login continues with the account's own progress.
+      setAuthIntent(mode);
+      try {
+        if (mode === 'signup') {
+          done = await registerWithEmail(email.trim(), password);
+        } else {
+          await signInWithEmail(email.trim(), password);
+          done = 'Signed in.';
+        }
+      } catch (err) {
+        setAuthIntent(null);
+        throw err;
       }
       password = '';
     });

@@ -1,9 +1,16 @@
 <script lang="ts">
-  import { account, changePassword, passwordRecovery, signOutAccount } from '../lib/supabase';
+  import {
+    account,
+    changePassword,
+    passwordRecovery,
+    requestPasswordReset,
+    signOutAccount,
+  } from '../lib/supabase';
   import { flushCloudSave } from '../engine/cloudSave';
   import { deleteAccount } from '../engine/deleteAccount';
   import { openAuth } from '../util/nav';
 
+  let expanded = $state(false);
   let newPassword = $state('');
   let deletePassword = $state('');
   let busy = $state(false);
@@ -59,43 +66,57 @@
       return 'Signed out.';
     });
   }
+
+  function onForgot() {
+    void run(() => requestPasswordReset($account.email ?? ''));
+  }
 </script>
 
 <h2>Account</h2>
 {#if $account.email}
   <div class="panel">
-    <p class="signed-in">
-      Signed in as <strong>{$account.email}</strong>
-    </p>
+    <button class="summary" aria-expanded={expanded} onclick={() => (expanded = !expanded)}>
+      <span class="email">{$account.email}</span>
+      <span class="chevron" aria-hidden="true">{expanded ? '▾' : '▸'}</span>
+    </button>
     {#if $passwordRecovery}
       <p class="recovery small">
         🔑 You arrived from a password-reset link — choose a new password below.
       </p>
+      <form onsubmit={onChangePassword}>
+        <label class="small muted" for="account-new-password">New password</label>
+        <input
+          id="account-new-password"
+          type="password"
+          autocomplete="new-password"
+          bind:value={newPassword}
+        />
+        <button class="primary" disabled={busy || newPassword.length === 0}>
+          Change password
+        </button>
+      </form>
     {/if}
-    <form onsubmit={onChangePassword}>
-      <label class="small muted" for="account-new-password">New password</label>
-      <input
-        id="account-new-password"
-        type="password"
-        autocomplete="new-password"
-        bind:value={newPassword}
-      />
-      <button class="primary" disabled={busy || newPassword.length === 0}>Change password</button>
-    </form>
-    <button class="secondary" disabled={busy} onclick={onSignOut}>Sign out</button>
-    <form class="danger-zone" onsubmit={onDeleteAccount}>
-      <p class="small danger-title">Danger zone</p>
-      <label class="small muted" for="account-delete-password">
-        Confirm your password to permanently delete this account
-      </label>
-      <input
-        id="account-delete-password"
-        type="password"
-        autocomplete="current-password"
-        bind:value={deletePassword}
-      />
-      <button class="danger" disabled={busy || deletePassword.length === 0}>Delete account</button>
-    </form>
+    {#if expanded}
+      <button class="secondary" disabled={busy} onclick={onForgot}>
+        Forgot password — email me a reset link
+      </button>
+      <button class="secondary" disabled={busy} onclick={onSignOut}>Sign out</button>
+      <form class="danger-zone" onsubmit={onDeleteAccount}>
+        <p class="small danger-title">Danger zone</p>
+        <label class="small muted" for="account-delete-password">
+          Confirm your password to permanently delete this account
+        </label>
+        <input
+          id="account-delete-password"
+          type="password"
+          autocomplete="current-password"
+          bind:value={deletePassword}
+        />
+        <button class="danger" disabled={busy || deletePassword.length === 0}>
+          Delete account
+        </button>
+      </form>
+    {/if}
   </div>
 {:else}
   <div class="panel">
@@ -131,8 +152,28 @@
     margin: 0;
   }
 
-  .signed-in {
+  .summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    background: none;
+    border: none;
+    padding: 2px 0;
+    color: var(--text);
+    font-weight: 600;
+    text-align: left;
+  }
+
+  .email {
+    flex: 1;
     overflow-wrap: anywhere;
+  }
+
+  .chevron {
+    flex: none;
+    color: var(--muted);
+    font-size: 0.85rem;
   }
 
   form {

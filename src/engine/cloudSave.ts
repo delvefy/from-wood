@@ -34,6 +34,12 @@ import {
 //   - download: once per sign-in / app start; newer payload.savedAt wins.
 // Anonymous identities never touch the table at all.
 //
+// Login vs signup (intent armed by the auth screen via setAuthIntent):
+//   - login continues with the account's own progress — whatever was played
+//     locally under another (usually anonymous) identity is discarded;
+//   - signup keeps the local progress: it becomes the new account's save and
+//     is pushed immediately so the cloud row exists from the start.
+//
 // Switching accounts on one device costs at most that single pull: the
 // outgoing account's state is stashed in IndexedDB keyed by its user id, and
 // restored from there if that account ever signs back in on this device.
@@ -65,6 +71,16 @@ let lastPushedFingerprint = '';
 // work strictly in order.
 let queue: Promise<void> = Promise.resolve();
 
+// What the player meant by the auth action they just took, armed by the auth
+// screen right before the Supabase call and consumed by the first
+// email-carrying auth event. Anonymous events never consume it, and a value
+// left over from a failed attempt is cleared by the auth screen.
+let pendingAuthIntent: 'signin' | 'signup' | null = null;
+
+export function setAuthIntent(intent: 'signin' | 'signup' | null): void {
+  pendingAuthIntent = intent;
+}
+
 export function initCloudSave(): void {
   supabase.auth.onAuthStateChange((_event, session) => {
     const user = session?.user ?? null;
@@ -93,17 +109,36 @@ async function handleAuthUser(user: User | null): Promise<void> {
   const sameUser = user.id === currentUid;
   currentUid = user.id;
   isEmailUser = !user.is_anonymous;
-  if (sameUser) return; // token refresh, or the anonymous → email upgrade
 
-  const owner = localStorage.getItem(OWNER_KEY);
-  if (owner === null) {
-    // First identity this device sees: it adopts the existing local progress.
-    localStorage.setItem(OWNER_KEY, user.id);
-  }
-  if (owner === null || owner === user.id) {
-    await adoptNewerCloudSave();
+  const intent = user.email ? pendingAuthIntent : null;
+  if (user.email) pendingAuthIntent = null;
+
+  if (intent === 'signup') {
+    // Signup keeps the local progress: it becomes the new account's save.
+    // (If signup required email confirmation there is no session here; the
+    // later confirmed sign-in arrives as a plain login instead.)
+    await finishSignup(user.id);
+  } else if (sameUser) {
+    return; // token refresh
+  } else if (intent === 'signin') {
+    // Login continues with the account's own progress. Only when the local
+    // save already belongs to this account do the two copies race (another
+    // device may have pushed); everything else is discarded.
+    const owner = localStorage.getItem(OWNER_KEY);
+    if (owner === user.id) await adoptNewerCloudSave();
+    else await switchToAccount(owner, user.id);
   } else {
-    await switchOwner(owner, user.id);
+    // No intent: app start restoring a session, or an anonymous sign-in.
+    const owner = localStorage.getItem(OWNER_KEY);
+    if (owner === null) {
+      // First identity this device sees: it adopts the existing local progress.
+      localStorage.setItem(OWNER_KEY, user.id);
+    }
+    if (owner === null || owner === user.id) {
+      await adoptNewerCloudSave();
+    } else {
+      await switchToAccount(owner, user.id);
+    }
   }
 
   // Premium ownership is server truth (the purchases ledger): refresh AFTER
@@ -131,23 +166,39 @@ async function adoptNewerCloudSave(): Promise<void> {
   await withSavesSuspended(() => applyPayload(cloud));
 }
 
-// A different account signed in on this device: stash the outgoing account's
-// state locally (free), then restore the incoming one from its cloud backup,
-// its local stash, or a fresh start — in that order.
-async function switchOwner(oldUid: string, newUid: string): Promise<void> {
+// A different identity is taking this device over: the local progress is not
+// theirs, so discard it — stashed under the outgoing owner (when there is
+// one) so that account can pick it back up here — and continue with the
+// incoming identity's own progress: the newer of its cloud backup and its
+// local stash, or a fresh start when it has neither.
+async function switchToAccount(oldUid: string | null, newUid: string): Promise<void> {
   await saveGame();
   await withSavesSuspended(async () => {
-    await idbSet(stashKey(oldUid), await buildPayload());
-    const incoming =
-      (isEmailUser ? await pullCloudSave() : null) ??
-      ((await idbGet(stashKey(newUid))) as CloudPayload | undefined) ??
-      null;
+    if (oldUid) await idbSet(stashKey(oldUid), await buildPayload());
+    const cloud = isEmailUser ? await pullCloudSave() : null;
+    const stash = ((await idbGet(stashKey(newUid))) as CloudPayload | undefined) ?? null;
+    const incoming = !cloud || (stash && stash.savedAt > cloud.savedAt) ? stash : cloud;
     localStorage.setItem(OWNER_KEY, newUid);
     await applyPayload(incoming);
     await idbDel(stashKey(newUid));
     lastPushAt = 0;
     lastPushedFingerprint = '';
   });
+}
+
+// Signup: whatever was played locally (usually anonymous progress) becomes
+// the new account's progress, backed up right away so the cloud row exists
+// from the start. The anonymous → email upgrade keeps its uid but the live
+// JWT still carries is_anonymous=true — which the saves RLS rejects — so
+// refresh the session before that first push.
+async function finishSignup(uid: string): Promise<void> {
+  const { data, error } = await supabase.auth.refreshSession();
+  if (error) console.warn('cloud save: post-signup session refresh failed', error);
+  if (data.session) isEmailUser = !data.session.user.is_anonymous;
+  localStorage.setItem(OWNER_KEY, uid);
+  lastPushAt = 0;
+  lastPushedFingerprint = '';
+  await pushNow();
 }
 
 // Make `payload` (or a fresh start when null) the live local state.
@@ -231,6 +282,9 @@ async function pushNow(): Promise<void> {
   lastPushAt = Date.now();
   if (fingerprint === lastPushedFingerprint) return;
   const { error } = await supabase.from('saves').upsert({ user_id: currentUid, payload });
-  if (error) return;
+  if (error) {
+    console.warn('cloud save: push failed', error.message);
+    return;
+  }
   lastPushedFingerprint = fingerprint;
 }

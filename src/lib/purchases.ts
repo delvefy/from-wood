@@ -31,7 +31,7 @@ import { supabase } from './supabase';
 // RevenueCat *public* SDK key for the Google Play app (Project settings →
 // API keys → Public app-specific API keys). Like the Supabase publishable
 // key, it is safe to ship in the client. TODO: paste the real goog_ key.
-const REVENUECAT_GOOGLE_API_KEY = 'goog_REPLACE_WITH_PUBLIC_SDK_KEY';
+const REVENUECAT_GOOGLE_API_KEY = 'goog_fTpsYuuzTPQBLuROFTwOwbOcQaa';
 
 export const isNativeApp = Capacitor.isNativePlatform();
 

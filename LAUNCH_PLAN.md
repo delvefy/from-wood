@@ -51,8 +51,11 @@ system must be solid first.
 - [ ] Install Android Studio; verify the game runs on an emulator and a real
       phone (touch targets, safe areas/notch, back button behavior).
       Open the project with `npx cap open android`.
-- [ ] Generate a **signed release keystore** and back it up somewhere safe —
-      losing it means losing the app. Enroll in Play App Signing (default).
+- [x] Generate a **signed release keystore** — done: `~/keystores/from-wood-release.keystore`
+      (alias `fromwood`; secrets in gitignored `android/keystore.properties`).
+      Backed up. Enroll in Play App Signing on first upload (accept the default).
+      Signed AAB build: `cd android && JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradlew bundleRelease`
+      → `android/app/build/outputs/bundle/release/app-release.aab`.
 - [x] PWA/web build untouched (plain `npm run build` as before).
 
 ## Phase 3 — Real purchases (RevenueCat + Play Billing)
@@ -75,22 +78,22 @@ Code is DONE and server-authoritative from day one:
 
 Remaining setup (dashboards, in this order):
 
-- [ ] Apply migration 0011 + deploy the webhook:
-      `supabase db push` (or apply 0011 manually), then
-      `supabase functions deploy revenuecat-webhook`.
-- [ ] Generate a long random secret; set it both sides:
+- [x] Apply migration 0011 (`supabase db push`) — done.
+- [x] Deploy the webhook: `supabase functions deploy revenuecat-webhook` — done.
+- [x] Generate a long random secret; set it both sides — done, verified
+      (RevenueCat test event → 200):
       `supabase secrets set RC_WEBHOOK_SECRET=<value>` and in RevenueCat →
       Integrations → Webhooks (Authorization header value must be identical).
       Webhook URL: `https://mawhmuprhprzmdgjzqve.supabase.co/functions/v1/revenuecat-webhook`
-- [ ] In Play Console, create the 4 in-app products (ids must match
+- [x] In Play Console, create the 4 in-app products (ids must match
       `src/content/premium.ts` exactly):
   - `gather_manager`, `craft_manager`, `market_manager` → one-time,
     **non-consumable** ($49.99)
   - `worker_pack` → one-time, **consumable** ($9.99)
-- [ ] In RevenueCat: create the project + Play Store app, connect the Play
+- [x] In RevenueCat: create the project + Play Store app, connect the Play
       service credentials, add the same 4 products (mark `worker_pack`
-      consumable so it can be re-bought).
-- [ ] Paste the RevenueCat **public Google SDK key** (goog_…) into
+      consumable so it can be re-bought) — done.
+- [x] Paste the RevenueCat **public Google SDK key** (goog_…) into
       `REVENUECAT_GOOGLE_API_KEY` in `src/lib/purchases.ts` (safe to commit,
       like the Supabase publishable key).
 - [ ] Test with **License Testing** accounts in Play Console (test cards, no
@@ -121,7 +124,7 @@ Remaining setup (dashboards, in this order):
 
 ## Phase 5 — Testing tracks → production
 
-- [ ] Upload a signed **AAB** (not APK) to a **closed testing** track.
+- [x] Upload a signed **AAB** (not APK) to a **closed testing** track.
 - [ ] If on a personal account: recruit 12+ testers (friends/Discord/Reddit
       playtest groups), keep them opted in for 14 days, then apply for
       production access.

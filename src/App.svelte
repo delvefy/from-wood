@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import AuthView from './components/AuthView.svelte';
   import BottomNav from './components/BottomNav.svelte';
   import ModeSwitch from './components/ModeSwitch.svelte';
   import CraftView from './components/CraftView.svelte';
@@ -76,6 +77,10 @@
       <VillageBoardView />
     {:else if $activeTab === 'settings'}
       <SettingsView />
+    {:else if $activeTab === 'signin'}
+      <AuthView mode="signin" />
+    {:else if $activeTab === 'signup'}
+      <AuthView mode="signup" />
     {:else}
       <MarketView />
     {/if}

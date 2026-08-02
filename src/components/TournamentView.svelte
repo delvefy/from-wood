@@ -14,7 +14,7 @@
   } from '../engine/tournament';
   import { account } from '../lib/supabase';
   import { formatCredits } from '../util/format';
-  import { accountMode, activeTab } from '../util/nav';
+  import { activeTab, openAuth } from '../util/nav';
 
   const NAME_KEY = 'from-wood-player-name';
 
@@ -102,13 +102,7 @@
       <h2>🏆 Weekly Tournament</h2>
       {#if !$account.signedIn}
         <p class="muted">Competing needs an account, so your league can follow you.</p>
-        <button
-          class="primary"
-          onclick={() => {
-            accountMode.set('register');
-            activeTab.set('settings');
-          }}>Create an account</button
-        >
+        <button class="primary" onclick={() => openAuth('signup')}>Create an account</button>
       {:else}
         <p class="muted">{$tournamentError ?? 'Could not reach the tournament server.'}</p>
         <button

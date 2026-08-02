@@ -8,13 +8,26 @@ export type Tab =
   | 'market'
   | 'tournament'
   | 'settings'
-  | 'leaderboard';
+  | 'leaderboard'
+  | 'signin'
+  | 'signup';
 
 export const activeTab = writable<Tab>('gather');
 
-// Which form the Settings → Account panel shows. Other views set this to
-// 'register' before navigating to send the player straight to registration.
-export const accountMode = writable<'signin' | 'register'>('signin');
+// Sign-in and sign-up are full pages; this remembers where the player came
+// from so finishing (or backing out of) the flow returns them there. Hopping
+// between the two auth pages keeps the original return point.
+const authReturnTab = writable<Tab>('settings');
+
+export function openAuth(page: 'signin' | 'signup'): void {
+  const current = get(activeTab);
+  if (current !== 'signin' && current !== 'signup') authReturnTab.set(current);
+  activeTab.set(page);
+}
+
+export function closeAuth(): void {
+  activeTab.set(get(authReturnTab));
+}
 
 // Per-view search text ('gather' | 'craft' | 'market'), session-only.
 export const searchFilters = writable<Record<string, string>>({});

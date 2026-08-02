@@ -1,19 +1,9 @@
 <script lang="ts">
-  import {
-    account,
-    changePassword,
-    passwordRecovery,
-    registerWithEmail,
-    requestPasswordReset,
-    signInWithEmail,
-    signOutAccount,
-  } from '../lib/supabase';
+  import { account, changePassword, passwordRecovery, signOutAccount } from '../lib/supabase';
   import { flushCloudSave } from '../engine/cloudSave';
   import { deleteAccount } from '../engine/deleteAccount';
-  import { accountMode } from '../util/nav';
+  import { openAuth } from '../util/nav';
 
-  let email = $state('');
-  let password = $state('');
   let newPassword = $state('');
   let deletePassword = $state('');
   let busy = $state(false);
@@ -32,20 +22,6 @@
     } finally {
       busy = false;
     }
-  }
-
-  function onSubmit(event: SubmitEvent) {
-    event.preventDefault();
-    void run(async () => {
-      if ($accountMode === 'register') return registerWithEmail(email.trim(), password);
-      await signInWithEmail(email.trim(), password);
-      password = '';
-      return 'Signed in.';
-    });
-  }
-
-  function onForgot() {
-    void run(() => requestPasswordReset(email.trim()));
   }
 
   function onChangePassword(event: SubmitEvent) {
@@ -128,33 +104,9 @@
       devices. Without one you still play with a per-device identity.
     </p>
     <div class="options">
-      <button class:active={$accountMode === 'signin'} onclick={() => accountMode.set('signin')}>
-        Sign in
-      </button>
-      <button class:active={$accountMode === 'register'} onclick={() => accountMode.set('register')}>
-        Register
-      </button>
+      <button class="primary" onclick={() => openAuth('signin')}>Sign in</button>
+      <button class="secondary" onclick={() => openAuth('signup')}>Create account</button>
     </div>
-    <form onsubmit={onSubmit}>
-      <label class="small muted" for="account-email">Email</label>
-      <input id="account-email" type="email" autocomplete="email" bind:value={email} />
-      <label class="small muted" for="account-password">Password</label>
-      <input
-        id="account-password"
-        type="password"
-        autocomplete={$accountMode === 'register' ? 'new-password' : 'current-password'}
-        bind:value={password}
-      />
-      <button
-        class="primary"
-        disabled={busy || email.trim().length === 0 || password.length === 0}
-      >
-        {$accountMode === 'register' ? 'Create account' : 'Sign in'}
-      </button>
-    </form>
-    <button class="linkish" disabled={busy || email.trim().length === 0} onclick={onForgot}>
-      Forgot password? Email me a reset link
-    </button>
   </div>
 {/if}
 {#if notice}
@@ -205,18 +157,6 @@
 
   .options button {
     flex: 1;
-    padding: 10px;
-    font-weight: 600;
-  }
-
-  .options button.active {
-    border-color: color-mix(in srgb, var(--magic) 45%, var(--border));
-    background: linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--magic) 18%, var(--panel-2)),
-      color-mix(in srgb, var(--tech) 18%, var(--panel-2))
-    );
-    box-shadow: 0 0 12px color-mix(in srgb, var(--magic) 25%, transparent);
   }
 
   .primary {
@@ -236,16 +176,6 @@
     font-weight: 600;
     padding: 10px;
     border-radius: var(--radius-sm);
-  }
-
-  .linkish {
-    background: none;
-    border: none;
-    color: var(--muted);
-    font-size: 0.85rem;
-    text-decoration: underline;
-    padding: 2px;
-    align-self: flex-start;
   }
 
   .danger-zone {

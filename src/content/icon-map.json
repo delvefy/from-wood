@@ -231,7 +231,7 @@
   "ui_craft": "lorc/anvil-impact",
   "ui_research": "lorc/materials-science",
   "ui_market": "delapouite/two-coins",
-  "ui_settings": "delapouite/settings-knobs",
+  "ui_settings": "lorc/cog",
   "worker_gatherer": "delapouite/farmer",
   "worker_crafter": "delapouite/blacksmith"
 }

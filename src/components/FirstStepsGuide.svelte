@@ -54,21 +54,25 @@
     <ol>
       <li class:done={step1Done}>
         <span class="mark">{step1Done ? '✓' : '1'}</span>
-        Put your gatherer to work — tap <strong>+</strong> on Wood or Water.
+        <span class="step">Put your gatherer to work — tap <strong>+</strong> on Wood or Water.</span>
       </li>
       <li class:done={step2Done}>
         <span class="mark">{step2Done ? '✓' : '2'}</span>
-        Hire a second gatherer ({hirePrice}) — sell spare wood or water in the
-        <strong>Market</strong> for credits.
+        <span class="step">
+          Hire a second gatherer ({hirePrice}) — sell spare wood or water in the
+          <strong>Market</strong> for credits.
+        </span>
       </li>
       <li class:done={step3Done}>
         <span class="mark">{step3Done ? '✓' : '3'}</span>
-        Research <strong>Basic Tools</strong> ({rootCost}).
+        <span class="step">Research <strong>Basic Tools</strong> ({rootCost}).</span>
       </li>
       <li>
         <span class="mark">4</span>
-        Research <strong>Sharp Tools</strong>, then <strong>Woodworking</strong> to start
-        crafting.
+        <span class="step">
+          Research <strong>Sharp Tools</strong>, then <strong>Woodworking</strong> to start
+          crafting.
+        </span>
       </li>
     </ol>
     {#if step1Done && !step2Done}
@@ -116,9 +120,14 @@
 
   li {
     display: flex;
-    align-items: baseline;
+    align-items: flex-start;
     gap: 8px;
     font-size: 0.85rem;
+  }
+
+  .step {
+    flex: 1;
+    min-width: 0;
   }
 
   li.done {

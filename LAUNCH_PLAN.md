@@ -125,6 +125,9 @@ Remaining setup (dashboards, in this order):
 ## Phase 5 — Testing tracks → production
 
 - [x] Upload a signed **AAB** (not APK) to a **closed testing** track.
+      ⚠️ The first upload (versionCode 1) was built *before* the RevenueCat
+      key was pasted in — purchases are dead in it. Upload the rebuilt
+      versionCode 2 AAB (2026-08-03) and roll it out before testing billing.
 - [ ] If on a personal account: recruit 12+ testers (friends/Discord/Reddit
       playtest groups), keep them opted in for 14 days, then apply for
       production access.

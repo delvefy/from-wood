@@ -12,7 +12,10 @@ export type Tab =
   | 'signin'
   | 'signup';
 
-export const activeTab = writable<Tab>('gather');
+// `#settings` deep-links straight to the Settings tab — Play Console's
+// account-deletion URL points here. Only this exact hash is honored: Supabase
+// auth links (password recovery) also arrive as hash fragments.
+export const activeTab = writable<Tab>(location.hash === '#settings' ? 'settings' : 'gather');
 
 // Sign-in and sign-up are full pages; this remembers where the player came
 // from so finishing (or backing out of) the flow returns them there. Hopping

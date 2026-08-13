@@ -16,21 +16,22 @@ export const LEAGUES = [
 
 // Worker rewards, granted once per finished tournament and added permanently
 // to the player's base workers — they apply to the village and seed every
-// future tournament run. Every place wins: the prize is worth 41 − rank
-// gatherers, paid as crafters (worth 10 gatherers each) plus the remainder.
-// 1st: 4 crafters, 2nd: 3 crafters + 9 gatherers, … 40th: 1 gatherer.
+// future tournament run. Only the top 20 win: ranks 1-10 earn 1 crafter plus
+// 11 − rank gatherers (1st: 1 crafter + 10 gatherers), ranks 11-20 earn
+// 21 − rank gatherers (11th: 10 gatherers … 20th: 1 gatherer).
 export interface TournamentReward {
   gatherers: number;
   crafters: number;
 }
 
 export function rewardForRank(rank: number): TournamentReward {
-  const value = Math.max(0, 41 - rank);
-  return { gatherers: value % 10, crafters: Math.floor(value / 10) };
+  if (rank <= 10) return { gatherers: 11 - rank, crafters: 1 };
+  if (rank <= 20) return { gatherers: 21 - rank, crafters: 0 };
+  return { gatherers: 0, crafters: 0 };
 }
 
 export const REWARD_SUMMARY =
-  'every place wins, from +4 crafters for 1st down to +1 gatherer for 40th';
+  'the top 20 win, from +1 crafter and +10 gatherers for 1st down to +1 gatherer for 20th';
 
 export function rewardLabel(rank: number): string {
   const r = rewardForRank(rank);

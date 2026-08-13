@@ -198,8 +198,8 @@
       <div class="card">
         <h3>Between tournaments</h3>
         <p class="muted">
-          The grounds are being swept. A new tournament opens every Friday at 00:00 UTC
-          and runs through Sunday.
+          The grounds are being swept. Tournaments open twice a week — Monday at
+          12:00 UTC and Friday at 00:00 UTC — and each runs for 3 days.
         </p>
         {#if $gameMode === 'tournament'}
           <button class="secondary" disabled={switching} onclick={() => onSwitch('main')}>

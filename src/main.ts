@@ -4,6 +4,7 @@ import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import './app.css';
 import App from './App.svelte';
+import { initTournamentReminders } from './lib/notifications';
 import { initPurchases } from './lib/purchases';
 
 // No-op in the Capacitor build (vite.config.ts disables the PWA plugin there).
@@ -22,6 +23,9 @@ if (Capacitor.isNativePlatform()) {
 // Native only (no-op on web): RevenueCat SDK setup + keeping its identity
 // pinned to the Supabase user id.
 initPurchases();
+
+// Native only (no-op on web): re-arm the local tournament-start reminders.
+initTournamentReminders();
 
 const app = mount(App, { target: document.getElementById('app')! });
 

@@ -9,6 +9,9 @@ export interface Settings {
   // First-steps guide on the Gather tab; dismissed by hand or for good once
   // Woodworking is researched (so fresh tournament runs don't resurface it).
   guideDismissed: boolean;
+  // Native only: local notification when a tournament opens. Off until the
+  // player turns it on and the OS permission is granted.
+  tournamentReminders: boolean;
 }
 
 function load(): Settings {
@@ -17,9 +20,10 @@ function load(): Settings {
     return {
       materialLinks: parsed?.materialLinks ?? true,
       guideDismissed: parsed?.guideDismissed ?? false,
+      tournamentReminders: parsed?.tournamentReminders ?? false,
     };
   } catch {
-    return { materialLinks: true, guideDismissed: false };
+    return { materialLinks: true, guideDismissed: false, tournamentReminders: false };
   }
 }
 
@@ -33,4 +37,10 @@ export function toggleMaterialLinks(): void {
 
 export function dismissGuide(): void {
   settings.update((s) => (s.guideDismissed ? s : { ...s, guideDismissed: true }));
+}
+
+// Set by the notification layer, which owns the OS permission: the stored
+// preference only ever reflects reminders that are actually scheduled.
+export function setTournamentRemindersSetting(on: boolean): void {
+  settings.update((s) => (s.tournamentReminders === on ? s : { ...s, tournamentReminders: on }));
 }

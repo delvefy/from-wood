@@ -7,6 +7,7 @@
   import { queueResearch } from '../engine/actions';
   import { gameMode } from '../engine/mode';
   import { villageTreeComplete } from '../engine/prestige';
+  import { readyResearchNodes } from '../engine/research';
   import { game } from '../engine/state';
   import { canAfford } from '../engine/tick';
   import type { TechNode } from '../engine/types';
@@ -283,10 +284,9 @@
     $game.researchQueue.length > 0 ? byId[$game.researchQueue[0]] : null,
   );
 
-  // Nodes the player can start right now: prereqs met AND affordable.
-  const readyNodes = $derived(
-    tree.filter((n) => status(n) === 'available' && canAfford($game, nodeCost(n))),
-  );
+  // Nodes the player can start right now: prereqs met AND affordable. Same
+  // test the nav-bar badge uses (engine/research.ts).
+  const readyNodes = $derived(readyResearchNodes(tree, $game));
 
   // Cycles through ready nodes so repeated taps tour all of them.
   let readyCycle = 0;

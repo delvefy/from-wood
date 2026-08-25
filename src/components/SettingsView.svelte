@@ -1,7 +1,28 @@
 <script lang="ts">
   import AccountSection from './AccountSection.svelte';
-  import { settings, toggleMaterialLinks } from '../util/settings';
+  import { notificationsSupported, setTournamentReminders } from '../lib/notifications';
+  import { setTournamentRemindersSetting, settings, toggleMaterialLinks } from '../util/settings';
   import { setTheme, theme } from '../util/theme';
+
+  // Web builds can't schedule anything for a closed tab, so the row only
+  // exists in the native app.
+  const canRemind = notificationsSupported();
+  let busy = $state(false);
+  let denied = $state(false);
+
+  async function toggleReminders() {
+    if (busy) return;
+    busy = true;
+    try {
+      const want = !$settings.tournamentReminders;
+      const on = await setTournamentReminders(want);
+      setTournamentRemindersSetting(on);
+      // Wanted them on and didn't get them: the OS prompt was declined.
+      denied = want && !on;
+    } finally {
+      busy = false;
+    }
+  }
 </script>
 
 <h2>Appearance</h2>
@@ -25,6 +46,23 @@
     <span class="knob"></span>
   </span>
 </button>
+
+{#if canRemind}
+  <button class="row" onclick={toggleReminders} disabled={busy}>
+    <span class="text">
+      <span class="label">Tournament reminders</span>
+      <span class="desc muted">
+        Notify me when a new tournament opens — Monday 12:00 and Friday 00:00 UTC.
+        {#if denied}
+          <br />Notifications are blocked for From Wood in your system settings.
+        {/if}
+      </span>
+    </span>
+    <span class="toggle" class:on={$settings.tournamentReminders} aria-hidden="true">
+      <span class="knob"></span>
+    </span>
+  </button>
+{/if}
 
 <h2>Credits</h2>
 <p class="credits muted">

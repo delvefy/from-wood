@@ -19,6 +19,7 @@
   "dependencies": {
     "@capacitor/app": "^8.1.1",
     "@capacitor/core": "^8.4.2",
+    "@capacitor/local-notifications": "^8.3.1",
     "@revenuecat/purchases-capacitor": "^13.2.4",
     "@supabase/supabase-js": "^2.110.5",
     "idb-keyval": "^6.2.2"

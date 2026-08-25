@@ -53,6 +53,22 @@ function authError(error: { message?: string } | null, fallback: string): Error 
   return new Error(error?.message || fallback);
 }
 
+// ---- Usernames ---------------------------------------------------------------
+// Picked once, at registration, and permanent. The server appends a #N
+// discriminator per base name, so duplicates are fine: the second vlad is
+// vlad#2. Must match username_valid() in supabase/migrations/0013.
+export const USERNAME_RE = /^[A-Za-z0-9_]{3,16}$/;
+export const USERNAME_RULE = 'Username must be 3-16 characters: letters, numbers or underscore.';
+
+// Claim the player's permanent username, returning the rendered "vlad#1".
+// Re-claiming the same name is a no-op, so a failed registration can be retried.
+export async function claimUsername(username: string): Promise<string> {
+  await ensureSignedIn();
+  const { data, error } = await supabase.rpc('claim_username', { p_username: username });
+  if (error) throw new Error(error.message);
+  return String(data ?? username);
+}
+
 // Register an email/password account. If the player already has an anonymous
 // session, the email is linked to it in place so tournament identity survives;
 // otherwise a fresh account is created and signed in. Returns a user-facing

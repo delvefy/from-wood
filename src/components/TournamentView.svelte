@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { DEMOTE_COUNT, LEAGUES, PROMOTE_COUNT, randomPlayerName, REWARD_SUMMARY, rewardLabel } from '../content/tournament';
+  import { DEMOTE_COUNT, LEAGUES, PROMOTE_COUNT, REWARD_SUMMARY, rewardLabel } from '../content/tournament';
   import { gameMode } from '../engine/mode';
   import {
     fetchLeaderboard,
@@ -16,13 +16,10 @@
   import { formatCredits } from '../util/format';
   import { activeTab, openAuth } from '../util/nav';
 
-  const NAME_KEY = 'from-wood-player-name';
-
   let loading = $state(true);
   let joining = $state(false);
   let switching = $state(false);
   let joinError = $state<string | null>(null);
-  let name = $state(localStorage.getItem(NAME_KEY) ?? randomPlayerName());
   let now = $state(Date.now());
 
   onMount(() => {
@@ -73,8 +70,7 @@
     joinError = null;
     joining = true;
     try {
-      await joinTournament(name.trim());
-      localStorage.setItem(NAME_KEY, name.trim());
+      await joinTournament();
       activeTab.set('gather'); // straight into the fresh run
     } catch (err) {
       joinError = err instanceof Error ? err.message : 'Could not join';
@@ -185,12 +181,17 @@
         <p class="muted small">
           Rewards are permanent base workers: {REWARD_SUMMARY}.
         </p>
-        <label class="small muted" for="tourney-name">Compete as</label>
-        <input id="tourney-name" maxlength="24" bind:value={name} />
+        {#if st.displayName}
+          <p class="muted small">Competing as <strong>{st.displayName}</strong>.</p>
+        {:else}
+          <p class="muted small">
+            You'll get a temporary name for the board — create an account to pick your own.
+          </p>
+        {/if}
         {#if joinError}
           <p class="error small">{joinError}</p>
         {/if}
-        <button class="primary" disabled={joining || name.trim().length === 0} onclick={onJoin}>
+        <button class="primary" disabled={joining} onclick={onJoin}>
           {joining ? 'Joining…' : '🏆 Join tournament'}
         </button>
       </div>
@@ -298,15 +299,6 @@
 
   .rank.up {
     color: var(--gold);
-  }
-
-  input {
-    width: 100%;
-    padding: 8px 10px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--bg);
-    color: var(--text);
   }
 
   .board {

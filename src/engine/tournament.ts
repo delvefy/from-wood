@@ -1,4 +1,5 @@
 import { get, writable } from 'svelte/store';
+import { randomPlayerName } from '../content/tournament';
 import { ensureSignedIn, supabase } from '../lib/supabase';
 import { getAccount, setRewardWorkers } from './account';
 import { resetTickClock } from './actions';
@@ -175,10 +176,14 @@ export async function resetTournamentEntries(): Promise<void> {
 
 // Join the running tournament and enter the (brand-new) tournament run.
 // Throws with a user-readable message on failure.
-export async function joinTournament(displayName: string): Promise<void> {
+//
+// No name is sent: usernames are chosen once at registration. p_display_name is
+// only the server's fallback base for a player who has never picked one — an
+// anonymous player who joins before registering — and is ignored otherwise.
+export async function joinTournament(): Promise<void> {
   await ensureSignedIn();
   const { data, error } = await supabase.rpc('join_tournament', {
-    p_display_name: displayName,
+    p_display_name: randomPlayerName(),
   });
   if (error) throw new Error(error.message);
   applyState(data);

@@ -78,19 +78,6 @@ export async function fetchVillageTop(force = false): Promise<void> {
   }
 }
 
-// Same key TournamentView uses for the "compete as" prefill, so the name the
-// village board invents is the one the player later sees suggested at join.
-const NAME_KEY = 'from-wood-player-name';
-
-function playerName(): string {
-  let name = localStorage.getItem(NAME_KEY);
-  if (!name) {
-    name = randomPlayerName();
-    localStorage.setItem(NAME_KEY, name);
-  }
-  return name;
-}
-
 // Push the village run's net worth, throttled. Fire-and-forget like the
 // tournament submit: scores are monotonic server-side, dropped ones cost
 // nothing.
@@ -108,9 +95,11 @@ export function maybeSubmitVillageScore(force = false): void {
   void (async () => {
     try {
       await ensureSignedIn();
+      // Fallback base only: the server names a player who has none yet (never
+      // registered) and ignores this once a username has been chosen.
       await supabase.rpc('submit_village_score', {
         p_score: score,
-        p_display_name: playerName(),
+        p_display_name: randomPlayerName(),
       });
     } catch {
       // Offline or transient — the next throttled submit retries.

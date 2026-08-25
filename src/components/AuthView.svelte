@@ -1,11 +1,19 @@
 <script lang="ts">
   import { setAuthIntent } from '../engine/cloudSave';
-  import { registerWithEmail, requestPasswordReset, signInWithEmail } from '../lib/supabase';
+  import {
+    claimUsername,
+    registerWithEmail,
+    requestPasswordReset,
+    signInWithEmail,
+    USERNAME_RE,
+    USERNAME_RULE,
+  } from '../lib/supabase';
   import { closeAuth, openAuth } from '../util/nav';
 
   let { mode }: { mode: 'signin' | 'signup' } = $props();
 
   let email = $state('');
+  let username = $state('');
   let password = $state('');
   let busy = $state(false);
   let notice = $state<string | null>(null);
@@ -36,7 +44,12 @@
       setAuthIntent(mode);
       try {
         if (mode === 'signup') {
-          done = await registerWithEmail(email.trim(), password);
+          if (!USERNAME_RE.test(username.trim())) throw new Error(USERNAME_RULE);
+          // Claimed before the account is created: registering while anonymous
+          // links the email to this same user, so the name comes along. If the
+          // registration then fails, retrying re-claims the same name for free.
+          const claimed = await claimUsername(username.trim());
+          done = `${await registerWithEmail(email.trim(), password)} You'll compete as ${claimed}.`;
         } else {
           await signInWithEmail(email.trim(), password);
           done = 'Signed in.';
@@ -71,6 +84,21 @@
       <form onsubmit={onSubmit}>
         <label class="small muted" for="auth-email">Email</label>
         <input id="auth-email" type="email" autocomplete="email" bind:value={email} />
+        {#if mode === 'signup'}
+          <label class="small muted" for="auth-username">Username</label>
+          <input
+            id="auth-username"
+            maxlength="16"
+            autocomplete="username"
+            placeholder="vlad"
+            bind:value={username}
+          />
+          <p class="small muted hint">
+            Permanent, and used on every leaderboard. Taken names are fine — we add a number,
+            so you'd become <strong>{(username.trim() || 'vlad') + '#2'}</strong> if someone
+            got there first.
+          </p>
+        {/if}
         <label class="small muted" for="auth-password">Password</label>
         <input
           id="auth-password"
@@ -80,7 +108,10 @@
         />
         <button
           class="primary"
-          disabled={busy || email.trim().length === 0 || password.length === 0}
+          disabled={busy ||
+            email.trim().length === 0 ||
+            password.length === 0 ||
+            (mode === 'signup' && !USERNAME_RE.test(username.trim()))}
         >
           {mode === 'signup' ? 'Create account' : 'Sign in'}
         </button>
@@ -198,6 +229,10 @@
 
   .muted {
     color: var(--muted);
+  }
+
+  .hint {
+    margin: 0 0 2px;
   }
 
   .done {

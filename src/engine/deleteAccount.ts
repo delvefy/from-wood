@@ -9,8 +9,8 @@ import { wipeLocalState } from './save';
 // that succeeds is this device wiped — a wrong password (or being offline)
 // throws and leaves everything untouched.
 //
-// Lives beside hardReset.ts because it spans the same layers. No cloud flush
-// at the end: there is no account left to back anything up to.
+// Lives outside save.ts because it spans layers that already import it. No
+// cloud flush at the end: there is no account left to back anything up to.
 export async function deleteAccount(password: string): Promise<void> {
   await requestAccountDeletion(password);
 

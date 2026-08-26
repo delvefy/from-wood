@@ -1,5 +1,4 @@
 /* Theme: wood — bright fantasy parchment with vivid arcane accents */
-:root,
 :root[data-theme='wood'] {
   --bg: #f0e4c9;
   --bg-glow-1: rgb(139 63 214 / 16%);
@@ -41,7 +40,9 @@
   --tier-9: #d2482b;
 }
 
-/* Theme: industrial — deep arcane night, neon magic + tech */
+/* Theme: industrial — deep arcane night, neon magic + tech. Also the bare
+   :root default, so an unthemed document renders dark rather than light. */
+:root,
 :root[data-theme='industrial'] {
   --bg: #0c0a1e;
   --bg-glow-1: rgb(168 85 247 / 20%);

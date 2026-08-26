@@ -3,10 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#ede3cf" />
+    <meta name="theme-color" content="#0c0a1e" />
     <script>
-      const theme =
-        localStorage.getItem('from-wood-theme') === 'industrial' ? 'industrial' : 'wood';
+      // Runs before first paint so the app never flashes the wrong palette.
+      // Defaults to dark — keep in sync with initialTheme() in util/theme.ts.
+      const theme = localStorage.getItem('from-wood-theme') === 'wood' ? 'wood' : 'industrial';
       document.documentElement.dataset.theme = theme;
       document
         .querySelector('meta[name="theme-color"]')

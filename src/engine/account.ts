@@ -4,7 +4,7 @@ import type { PremiumId } from './types';
 // Account-level data: everything that belongs to the player rather than to a
 // save slot. Base workers — real-money premium purchases plus worker rewards
 // won in tournaments — live here, so they apply to the village and seed every
-// new tournament run alike. Only the full hard reset (hardReset.ts) wipes them.
+// new tournament run alike. Only account deletion (deleteAccount.ts) wipes them.
 //
 // Reward workers are server truth: the backend computes them from finalized
 // tournament entries, and every state refresh overwrites the local values

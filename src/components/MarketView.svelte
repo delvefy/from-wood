@@ -18,7 +18,6 @@
     totalCrafters,
     totalGatherers,
   } from '../engine/premium';
-  import { hardReset } from '../engine/hardReset';
   import { account as authInfo } from '../lib/supabase';
   import { isNativeApp, purchasePremium, restoreNativePurchases } from '../lib/purchases';
   import type { PremiumItem, ResourceDef } from '../engine/types';
@@ -141,15 +140,6 @@
       restoring = false;
     }
   }
-
-  async function confirmReset() {
-    if (
-      confirm(
-        'Wipe EVERYTHING and start over? This removes tournament rewards and your tournament entry. Premium items bought with real money stay on your signed-in account and are restored automatically.',
-      )
-    )
-      await hardReset();
-  }
 </script>
 
 <SearchBox view="market" placeholder="Search items…" />
@@ -254,9 +244,6 @@
     {restoring ? 'Restoring…' : 'Restore purchases'}
   </button>
 {/if}
-
-<h2>Danger zone</h2>
-<button class="reset" onclick={confirmReset}>Hard-reset save</button>
 
 <style>
   /* Global h2 spacing is roomy; this tab stacks four sections, so tighten. */
@@ -431,13 +418,5 @@
     border: 1px solid var(--border);
     color: var(--muted);
     font-size: 0.8rem;
-  }
-
-  .reset {
-    width: 100%;
-    color: var(--danger);
-    border-color: var(--danger);
-    background: none;
-    margin-bottom: 12px;
   }
 </style>

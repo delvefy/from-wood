@@ -131,9 +131,9 @@ export async function writeFreshTournamentSave(): Promise<void> {
   await idbSet(SAVE_KEYS.tournament, JSON.parse(JSON.stringify(s)));
 }
 
-// Local half of the hard reset: wipe both slots and boot a fresh village.
-// The full player-facing reset (account data, server tournament entries,
-// cloud flush) is orchestrated in hardReset.ts.
+// Local half of account deletion: wipe both slots and boot a fresh village.
+// The rest of the wipe (server-side deletion, cloud identity, account data)
+// is orchestrated in deleteAccount.ts.
 export async function wipeLocalState(): Promise<void> {
   await idbDel(SAVE_KEYS.main);
   await idbDel(SAVE_KEYS.tournament);

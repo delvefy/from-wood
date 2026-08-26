@@ -12,10 +12,12 @@
 #   public *;
 #}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Readable stack traces in Play Console (mapping file is uploaded with the AAB).
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Capacitor bridges JS -> native through @JavascriptInterface methods.
+# Plugin classes themselves are kept by capacitor-android's consumer rules.
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}

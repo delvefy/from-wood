@@ -1,3 +1,5 @@
+import { Capacitor } from '@capacitor/core';
+import { StatusBar, Style } from '@capacitor/status-bar';
 import { derived, writable } from 'svelte/store';
 import { gameMode } from '../engine/mode';
 import { activeTab } from './nav';
@@ -6,9 +8,12 @@ export type Theme = 'wood' | 'industrial';
 
 const STORAGE_KEY = 'from-wood-theme';
 
+// Dark (industrial) is the default; only an explicit past choice of wood
+// keeps a player on the light palette. Must stay in sync with the pre-paint
+// script in index.html, which picks the theme before the app boots.
 function initialTheme(): Theme {
   const saved = localStorage.getItem(STORAGE_KEY);
-  return saved === 'industrial' ? 'industrial' : 'wood';
+  return saved === 'wood' ? 'wood' : 'industrial';
 }
 
 export const theme = writable<Theme>(initialTheme());
@@ -34,6 +39,13 @@ derived([theme, uiMode], (pair) => pair).subscribe(([t, mode]) => {
   document
     .querySelector('meta[name="theme-color"]')
     ?.setAttribute('content', META_COLORS[mode][t]);
+  // The native shell draws edge-to-edge, so the status bar icons sit on the
+  // page's own background — keep them readable for the active theme.
+  if (Capacitor.isNativePlatform()) {
+    void StatusBar.setStyle({ style: t === 'industrial' ? Style.Dark : Style.Light }).catch(
+      () => {},
+    );
+  }
 });
 
 export function setTheme(t: Theme) {

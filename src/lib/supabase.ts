@@ -55,18 +55,40 @@ function authError(error: { message?: string } | null, fallback: string): Error 
 
 // ---- Usernames ---------------------------------------------------------------
 // Picked once, at registration, and permanent. The server appends a #N
-// discriminator per base name, so duplicates are fine: the second vlad is
-// vlad#2. Must match username_valid() in supabase/migrations/0013.
+// discriminator per base name so duplicates are fine — an implementation
+// detail players are never shown. Must match username_valid() in
+// supabase/migrations/0013.
 export const USERNAME_RE = /^[A-Za-z0-9_]{3,16}$/;
 export const USERNAME_RULE = 'Username must be 3-16 characters: letters, numbers or underscore.';
 
-// Claim the player's permanent username, returning the rendered "vlad#1".
-// Re-claiming the same name is a no-op, so a failed registration can be retried.
+// A chosen name waits here when there is no session to attach it to yet:
+// claim_username needs an auth.uid(), and registration doesn't always sign the
+// player in (email confirmation). Claimed on their first sign-in instead.
+const PENDING_USERNAME_KEY = 'from-wood-pending-username';
+
+// Claim the player's permanent username against the current session. Re-claiming
+// the same name is a no-op, so a failed registration can be retried.
 export async function claimUsername(username: string): Promise<string> {
-  await ensureSignedIn();
+  const { data: session } = await supabase.auth.getSession();
+  if (!session.session) {
+    localStorage.setItem(PENDING_USERNAME_KEY, username);
+    return username;
+  }
   const { data, error } = await supabase.rpc('claim_username', { p_username: username });
   if (error) throw new Error(error.message);
+  localStorage.removeItem(PENDING_USERNAME_KEY);
   return String(data ?? username);
+}
+
+// Claim a name chosen at registration that had no session to land on. Failures
+// stay quiet: the player asked to sign in, not to rename anything, and the
+// server keeps whatever name the account already has.
+async function claimPendingUsername(): Promise<void> {
+  const pending = localStorage.getItem(PENDING_USERNAME_KEY);
+  if (!pending) return;
+  localStorage.removeItem(PENDING_USERNAME_KEY);
+  const { error } = await supabase.rpc('claim_username', { p_username: pending });
+  if (error) console.warn('deferred username claim failed:', error.message);
 }
 
 // Register an email/password account. If the player already has an anonymous
@@ -93,6 +115,7 @@ export async function registerWithEmail(email: string, password: string): Promis
 export async function signInWithEmail(email: string, password: string): Promise<void> {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw authError(error, 'Sign-in failed');
+  await claimPendingUsername();
 }
 
 export async function signOutAccount(): Promise<void> {

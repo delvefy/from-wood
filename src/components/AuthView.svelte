@@ -45,11 +45,13 @@
       try {
         if (mode === 'signup') {
           if (!USERNAME_RE.test(username.trim())) throw new Error(USERNAME_RULE);
-          // Claimed before the account is created: registering while anonymous
-          // links the email to this same user, so the name comes along. If the
-          // registration then fails, retrying re-claims the same name for free.
-          const claimed = await claimUsername(username.trim());
-          done = `${await registerWithEmail(email.trim(), password)} You'll compete as ${claimed}.`;
+          // Account first, name second: registering while anonymous links the
+          // email to the same user, and with no session at all signUp makes
+          // one — either way the claim lands on this account, and it no longer
+          // depends on anonymous sign-ins being available.
+          const status = await registerWithEmail(email.trim(), password);
+          await claimUsername(username.trim());
+          done = status;
         } else {
           await signInWithEmail(email.trim(), password);
           done = 'Signed in.';
@@ -86,18 +88,8 @@
         <input id="auth-email" type="email" autocomplete="email" bind:value={email} />
         {#if mode === 'signup'}
           <label class="small muted" for="auth-username">Username</label>
-          <input
-            id="auth-username"
-            maxlength="16"
-            autocomplete="username"
-            placeholder="vlad"
-            bind:value={username}
-          />
-          <p class="small muted hint">
-            Permanent, and used on every leaderboard. Taken names are fine — we add a number,
-            so you'd become <strong>{(username.trim() || 'vlad') + '#2'}</strong> if someone
-            got there first.
-          </p>
+          <input id="auth-username" maxlength="16" autocomplete="username" bind:value={username} />
+          <p class="small muted hint">Permanent, and used on every leaderboard.</p>
         {/if}
         <label class="small muted" for="auth-password">Password</label>
         <input

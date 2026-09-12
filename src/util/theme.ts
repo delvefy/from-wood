@@ -1,10 +1,16 @@
-import { Capacitor } from '@capacitor/core';
-import { StatusBar, Style } from '@capacitor/status-bar';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { derived, writable } from 'svelte/store';
 import { gameMode } from '../engine/mode';
 import { activeTab } from './nav';
 
 export type Theme = 'wood' | 'industrial';
+
+// Tiny in-app native plugin (android/.../StatusBarStylePlugin.java) that only
+// flips status bar icon colour; @capacitor/status-bar pulls in APIs Android 15
+// deprecates for edge-to-edge apps, which Play flags on every release.
+const StatusBarStyle = registerPlugin<{
+  setStyle(opts: { style: 'dark' | 'light' }): Promise<void>;
+}>('StatusBarStyle');
 
 const STORAGE_KEY = 'from-wood-theme';
 
@@ -42,9 +48,7 @@ derived([theme, uiMode], (pair) => pair).subscribe(([t, mode]) => {
   // The native shell draws edge-to-edge, so the status bar icons sit on the
   // page's own background — keep them readable for the active theme.
   if (Capacitor.isNativePlatform()) {
-    void StatusBar.setStyle({ style: t === 'industrial' ? Style.Dark : Style.Light }).catch(
-      () => {},
-    );
+    void StatusBarStyle.setStyle({ style: t === 'industrial' ? 'dark' : 'light' }).catch(() => {});
   }
 });
 

@@ -15,6 +15,7 @@ public class MainActivity extends BridgeActivity {
         // env(safe-area-inset-*) (index.html sets viewport-fit=cover).
         // After super.onCreate: BridgeActivity swaps in AppTheme.NoActionBar
         // there, and touching the window before that leaves the action bar on.
+        registerPlugin(StatusBarStylePlugin.class);
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
 

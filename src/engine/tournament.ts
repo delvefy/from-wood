@@ -10,8 +10,9 @@ import { game } from './state';
 import { getTournamentMeta, setTournamentMeta } from './tournamentMeta';
 import { totalValue } from './worth';
 
-// Client side of the weekly tournament: talks to the Supabase RPCs defined in
-// supabase/migrations/, and owns switching between the two save slots.
+// Client side of the weekly tournament (Mon 12:00 → Mon 00:00 UTC): talks to
+// the Supabase RPCs defined in supabase/migrations/, and owns switching
+// between the two save slots.
 
 export interface TournamentInfo {
   id: string;
@@ -22,7 +23,6 @@ export interface TournamentInfo {
 export interface EntryInfo {
   tournamentId: string;
   groupId: string;
-  league: number;
   joinedAt: number;
   score: number;
   finalRank: number | null;
@@ -34,7 +34,6 @@ export interface EntryInfo {
 
 export interface TournamentState {
   serverNow: number;
-  league: number;
   displayName: string;
   nextStartsAt: number;
   tournament: TournamentInfo | null; // the running tournament, if any
@@ -61,7 +60,6 @@ const ts = (v: unknown): number => new Date(String(v)).getTime();
 function parseState(data: any): TournamentState {
   return {
     serverNow: ts(data.now),
-    league: Number(data.league ?? 0),
     displayName: String(data.display_name ?? ''),
     nextStartsAt: ts(data.next_starts_at),
     tournament: data.tournament
@@ -75,7 +73,6 @@ function parseState(data: any): TournamentState {
       ? {
           tournamentId: String(data.entry.tournament_id),
           groupId: String(data.entry.group_id),
-          league: Number(data.entry.league),
           joinedAt: ts(data.entry.joined_at),
           score: Number(data.entry.score),
           finalRank: data.entry.final_rank == null ? null : Number(data.entry.final_rank),
@@ -102,7 +99,6 @@ function syncMeta(st: TournamentState): void {
   setTournamentMeta({
     tournamentId: e.tournamentId,
     groupId: e.groupId,
-    league: e.league,
     joinedAt: e.joinedAt,
     startsAt: e.startsAt,
     endsAt: e.endsAt,

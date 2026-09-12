@@ -121,7 +121,7 @@
 {:else}
   <div class="panel">
     <p class="small muted">
-      Optional — an account backs up your progress and league so you can pick up on other
+      Optional — an account backs up your progress and tournament results so you can pick up on other
       devices. Without one you still play with a per-device identity.
     </p>
     <div class="options">

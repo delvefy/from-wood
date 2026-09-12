@@ -305,4 +305,10 @@ if (researched.size < TECH.length) {
   console.log(`all materials collected (last node queued) at ${(lastQueuedAt / 86_400).toFixed(2)} days`);
   const last = nodeDone.slice(-5).map((d) => `${d.id}@${(d.t / 3600).toFixed(1)}h`);
   console.log(`last nodes: ${last.join(', ')}`);
+  // SIM_VERBOSE=1 prints every node's completion time, in order.
+  if (process.env.SIM_VERBOSE) {
+    for (const [i, d] of nodeDone.entries()) {
+      console.log(`  ${String(i + 1).padStart(3)} ${d.id.padEnd(28)} ${(d.t / 3600).toFixed(2).padStart(7)}h`);
+    }
+  }
 }

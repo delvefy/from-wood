@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { DEMOTE_COUNT, LEAGUES, PROMOTE_COUNT, REWARD_SUMMARY, rewardLabel } from '../content/tournament';
+  import { GROUP_SIZE, REWARD_SUMMARY, SCHEDULE_SUMMARY, rewardLabel } from '../content/tournament';
   import { gameMode } from '../engine/mode';
   import {
     fetchLeaderboard,
@@ -47,14 +47,7 @@
   const inCurrent = $derived(running !== null && entry?.tournamentId === running.id);
   // A finished entry to show results for (this week's ended run or an older one).
   const lastResult = $derived(entry && entry.status === 'finished' ? entry : null);
-  const league = $derived(LEAGUES[st?.league ?? 0] ?? LEAGUES[0]);
   const myRow = $derived($leaderboard.find((r) => r.isMe) ?? null);
-  // Mirrors finalize_due_tournaments(): top half promotes (never from a solo
-  // group), bottom half demotes, scaled down for undersized groups.
-  const promoteCut = $derived(
-    $leaderboard.length >= 2 ? Math.min(PROMOTE_COUNT, Math.ceil($leaderboard.length / 2)) : 0,
-  );
-  const demoteCut = $derived(Math.min(DEMOTE_COUNT, Math.floor($leaderboard.length / 2)));
 
   function timeLeft(until: number): string {
     const s = Math.max(0, Math.floor((until - now) / 1000));
@@ -97,7 +90,7 @@
     <div class="card">
       <h2>🏆 Weekly Tournament</h2>
       {#if !$account.signedIn}
-        <p class="muted">Competing needs an account, so your league can follow you.</p>
+        <p class="muted">Competing needs an account, so your results can follow you.</p>
         <button class="primary" onclick={() => openAuth('signup')}>Create an account</button>
       {:else}
         <p class="muted">{$tournamentError ?? 'Could not reach the tournament server.'}</p>
@@ -114,10 +107,10 @@
     </div>
   {:else}
     <div class="header card">
-      <div class="league">
-        <span class="league-icon">{league.icon}</span>
+      <div class="title">
+        <span class="title-icon">🏆</span>
         <div>
-          <div class="league-name">{league.name} League</div>
+          <div class="title-name">Weekly Tournament</div>
           <div class="muted small">
             {#if st.displayName}Competing as {st.displayName}{:else}Not competing yet{/if}
           </div>
@@ -140,8 +133,8 @@
       <div class="card">
         <h3>Last tournament result</h3>
         <p>
-          Finished <strong>#{lastResult.finalRank}</strong> of {lastResult.groupSize}
-          in {LEAGUES[lastResult.league]?.name ?? 'league'}.
+          Finished <strong>#{lastResult.finalRank}</strong> of {lastResult.groupSize} in your
+          group.
         </p>
         <p class="muted">{rewardLabel(lastResult.finalRank)}</p>
       </div>
@@ -152,7 +145,7 @@
         <div class="row-between">
           <h3>Your run</h3>
           {#if myRow}
-            <span class="rank" class:up={myRow.rank <= promoteCut}>#{myRow.rank}</span>
+            <span class="rank" class:up={myRow.rank <= GROUP_SIZE}>#{myRow.rank}</span>
           {/if}
         </div>
         <p class="muted small">
@@ -173,10 +166,9 @@
       <div class="card">
         <h3>Join this week's tournament</h3>
         <p class="muted small">
-          Everyone starts a brand-new run with just their base workers and races for 3
-          days to build the highest net worth. Your village keeps running and is never
-          affected. Top {PROMOTE_COUNT} of a group move up a league, bottom
-          {DEMOTE_COUNT} move down.
+          Everyone starts a brand-new run with just their base workers and races until
+          Sunday midnight (UTC) to build the highest net worth. Your village keeps running
+          and is never affected. You compete in a group of up to {GROUP_SIZE} players.
         </p>
         <p class="muted small">
           Rewards are permanent base workers: {REWARD_SUMMARY}.
@@ -199,8 +191,7 @@
       <div class="card">
         <h3>Between tournaments</h3>
         <p class="muted">
-          The grounds are being swept. Tournaments open twice a week — Monday at
-          12:00 UTC and Friday at 00:00 UTC — and each runs for 3 days.
+          The grounds are being swept. {SCHEDULE_SUMMARY}
         </p>
         {#if $gameMode === 'tournament'}
           <button class="secondary" disabled={switching} onclick={() => onSwitch('main')}>
@@ -215,11 +206,7 @@
         <h3>{inCurrent ? 'Standings' : 'Final standings'}</h3>
         <ol class="board">
           {#each $leaderboard as row, i (i)}
-            <li
-              class:me={row.isMe}
-              class:up={row.rank <= promoteCut}
-              class:down={(st?.league ?? 0) > 0 && row.rank > $leaderboard.length - demoteCut}
-            >
+            <li class:me={row.isMe} class:up={row.rank <= GROUP_SIZE}>
               <span class="pos">#{row.rank}</span>
               <span class="name">{row.name}{row.isMe ? ' (you)' : ''}</span>
               <span class="score">{formatCredits(row.score)}</span>
@@ -227,7 +214,7 @@
           {/each}
         </ol>
         <p class="muted small">
-          ▲ top {PROMOTE_COUNT} promote · ▼ bottom {DEMOTE_COUNT} demote · groups hold 40 players
+          Every place in a group of {GROUP_SIZE} wins workers · higher rank, bigger reward
         </p>
       </div>
     {/if}
@@ -263,17 +250,17 @@
     border-color: color-mix(in srgb, var(--gold) 45%, var(--border));
   }
 
-  .league {
+  .title {
     display: flex;
     align-items: center;
     gap: 10px;
   }
 
-  .league-icon {
+  .title-icon {
     font-size: 1.8rem;
   }
 
-  .league-name {
+  .title-name {
     font-weight: 700;
   }
 
@@ -320,10 +307,6 @@
 
   .board li.up {
     background: color-mix(in srgb, var(--gold) 10%, transparent);
-  }
-
-  .board li.down {
-    background: color-mix(in srgb, var(--danger) 8%, transparent);
   }
 
   .board li.me {

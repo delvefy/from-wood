@@ -71,8 +71,27 @@ export const RESEARCH_TIME_SECONDS = 60; // flat, every node, both modes
 // The village curve shares the tournament's cheap start (so a fresh village
 // gets moving within its first few gather cycles) and ends far above the
 // tournament's final node.
-const TOURNAMENT_COST_CURVE = { rootValue: 2, endValue: 1_750_000 }; // 1 wood + 1 water at the root
-const VILLAGE_COST_CURVE = { rootValue: 2, endValue: 46_500_000 };
+//
+// The tournament curve is split in two (2026-09-05, when tournaments went
+// from 3 to 6.5 days): the opening nodes — authored time ≤ steepenFrom, the
+// first ~30 nodes up to the iron/steel era — keep the original 24h-tuned
+// curve untouched so the first hour still feels the same, and everything
+// above rides a steeper power segment (continuous at the pivot) that lands on
+// steepEndValue at the tree's end. Target: the benchmark crew clears the tree
+// in ~3 days.
+interface CostCurve {
+  rootValue: number;
+  endValue: number;
+  steepenFrom?: number; // authored seconds; nodes at/below use the base curve
+  steepEndValue?: number; // where the late segment lands at AUTHORED_TIME.end
+}
+const TOURNAMENT_COST_CURVE: CostCurve = {
+  rootValue: 2, // 1 wood + 1 water at the root
+  endValue: 1_750_000, // the old 24h curve, still shaping the opening nodes
+  steepenFrom: 600,
+  steepEndValue: 6_900_000,
+};
+const VILLAGE_COST_CURVE: CostCurve = { rootValue: 2, endValue: 46_500_000 };
 
 const AUTHORED_TIME = { root: 30, end: 86_400 };
 
@@ -84,13 +103,17 @@ const price = (id: string) => RESOURCE_BY_ID[id]?.baseSellPrice ?? 0;
 const costValue = (cost: Record<string, number>): number =>
   Object.entries(cost).reduce((sum, [id, n]) => sum + n * price(id), 0);
 
-function targetCostValue(
-  authoredSeconds: number,
-  curve: { rootValue: number; endValue: number },
-): number {
-  const { rootValue, endValue } = curve;
-  const exp = Math.log(endValue / rootValue) / Math.log(AUTHORED_TIME.end / AUTHORED_TIME.root);
-  return rootValue * (authoredSeconds / AUTHORED_TIME.root) ** exp;
+// Power interpolation: value(t0) = v0, value(t1) = v1.
+const powerCurve = (t: number, t0: number, v0: number, t1: number, v1: number): number =>
+  v0 * (t / t0) ** (Math.log(v1 / v0) / Math.log(t1 / t0));
+
+function targetCostValue(authoredSeconds: number, curve: CostCurve): number {
+  const { rootValue, endValue, steepenFrom, steepEndValue } = curve;
+  const base = (t: number) => powerCurve(t, AUTHORED_TIME.root, rootValue, AUTHORED_TIME.end, endValue);
+  if (steepenFrom === undefined || steepEndValue === undefined || authoredSeconds <= steepenFrom) {
+    return base(authoredSeconds);
+  }
+  return powerCurve(authoredSeconds, steepenFrom, base(steepenFrom), AUTHORED_TIME.end, steepEndValue);
 }
 
 // Amounts ≥ 100 round to two significant digits so scaled costs read cleanly.

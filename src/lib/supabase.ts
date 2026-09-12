@@ -22,7 +22,7 @@ export async function ensureSignedIn(): Promise<string> {
 
 // ---- Email/password accounts -------------------------------------------------
 // Optional upgrade over the anonymous identity: registering while anonymous
-// attaches the email to the same user (keeping league/tournament history);
+// attaches the email to the same user (keeping tournament history);
 // signing in on another device recovers that account.
 
 export interface AccountInfo {

@@ -5,7 +5,6 @@
 export interface TournamentMeta {
   tournamentId: string;
   groupId: string;
-  league: number;
   joinedAt: number; // epoch ms
   startsAt: number; // epoch ms
   endsAt: number; // epoch ms — tournament runs freeze here

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import FirstStepsGuide from './FirstStepsGuide.svelte';
   import LockedList from './LockedList.svelte';
   import SearchBox from './SearchBox.svelte';
@@ -49,6 +50,15 @@
   // One row expanded at a time.
   let expanded = $state<string | null>(null);
   const toggle = (id: string) => (expanded = expanded === id ? null : id);
+
+  // A new search collapses whatever was open; an exact material name (what
+  // material links set) opens that material's row.
+  $effect(() => {
+    const q = query;
+    untrack(() => {
+      expanded = (q && gatherable.find((r) => r.name.toLowerCase() === q)?.id) || null;
+    });
+  });
 
   function cycleOf(r: ResourceDef): number {
     return r.extractTimeSeconds * gatherTimeFactor($account);

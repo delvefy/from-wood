@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import Icon from './Icon.svelte';
   import LockedList from './LockedList.svelte';
   import SearchBox from './SearchBox.svelte';
@@ -75,9 +76,13 @@
     return [...byCategory.values()].filter((g) => g.recipes.length > 0);
   });
   // Pinned on top: every staffed recipe regardless of category — the
-  // handful actually running is what players check most.
+  // handful actually running is what players check most. Hidden while
+  // searching, where every group is open anyway and the pin would only
+  // duplicate the category row.
   const active = $derived(
-    visible.filter((r) => unlockedRecipeSet.has(r.id) && ($game.craftAssignment[r.id] ?? 0) > 0),
+    query
+      ? []
+      : RECIPES.filter((r) => unlockedRecipeSet.has(r.id) && ($game.craftAssignment[r.id] ?? 0) > 0),
   );
   const locked = $derived(
     visible
@@ -94,6 +99,21 @@
   // and the category copy of the same recipe open independently.
   let expanded = $state<string | null>(null);
   const toggle = (key: string) => (expanded = expanded === key ? null : key);
+
+  // A new search collapses whatever was open. When the text names a material
+  // exactly (material links from research set it that way), the recipe that
+  // produces it opens instead, so the player lands on what they picked.
+  $effect(() => {
+    const q = query;
+    untrack(() => {
+      const hit = q
+        ? groups
+            .flatMap((g) => g.recipes.map((r) => [g.id, r] as const))
+            .find(([, r]) => nameOf(outputId(r)).toLowerCase() === q)
+        : undefined;
+      expanded = hit ? `${hit[0]}:${hit[1].id}` : null;
+    });
+  });
 
   // Groups start collapsed (search shows everything); the open set persists.
   const groupOpen = (id: string) => !!query || isOpen($collapsed, 'craft-open', id);

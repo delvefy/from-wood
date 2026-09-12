@@ -88,8 +88,8 @@ Remaining setup (dashboards, in this order):
 - [x] In Play Console, create the 4 in-app products (ids must match
       `src/content/premium.ts` exactly):
   - `gather_manager`, `craft_manager`, `market_manager` → one-time,
-    **non-consumable** ($49.99)
-  - `worker_pack` → one-time, **consumable** ($9.99)
+    **non-consumable** ($9.99)
+  - `worker_pack` → one-time, **consumable** ($3.99)
 - [x] In RevenueCat: create the project + Play Store app, connect the Play
       service credentials, add the same 4 products (mark `worker_pack`
       consumable so it can be re-bought) — done.
@@ -154,7 +154,7 @@ Remaining setup (dashboards, in this order):
 | --- | --- |
 | Play account type | **Personal** — plan for the 12-testers × 14-days closed test |
 | App ID | **`victorblack.fromwood`** (baked in, permanent) |
-| Real prices | **Keeping** $49.99 managers / $9.99 worker pack |
+| Real prices | $9.99 managers / $3.99 worker pack |
 | Server-side entitlements | **Webhook from day one** (purchases ledger, migration 0011) |
 
 ## Rough effort estimate

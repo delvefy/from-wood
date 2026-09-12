@@ -29,3 +29,9 @@ export function toggleCollapsed(view: string, id: string): void {
 export function isCollapsed(all: Record<string, string[]>, view: string, id: string): boolean {
   return (all[view] ?? []).includes(id);
 }
+
+// Inverse convention for views whose groups start collapsed: the stored ids
+// are the OPEN ones. Toggle with toggleCollapsed under the same view key.
+export function isOpen(all: Record<string, string[]>, view: string, id: string): boolean {
+  return (all[view] ?? []).includes(id);
+}

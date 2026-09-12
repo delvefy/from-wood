@@ -234,7 +234,7 @@
         disabled={!canBuy || buying !== null}
         onclick={() => handleBuyPremium(item)}
       >
-        {buying === item.id ? 'Buying…' : `Buy ${formatUsd(item.priceUsd)}`}
+        {buying === item.id ? 'Buying…' : 'Buy'}
       </button>
     {/if}
   </div>

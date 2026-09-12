@@ -1,7 +1,10 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
+  import LockedList from './LockedList.svelte';
   import SearchBox from './SearchBox.svelte';
-  import { CATEGORY_ORDER, RECIPES, RECIPE_BY_ID } from '../content/recipes';
+  import WorkerBudget from './WorkerBudget.svelte';
+  import WorkerRow from './WorkerRow.svelte';
+  import { CATEGORY_ORDER, RECIPES } from '../content/recipes';
   import { RESOURCE_BY_ID } from '../content/resources';
   import { techTree } from '../content/tech';
   import { CRAFTER } from '../content/workers';
@@ -15,13 +18,12 @@
   import { craftTimeFactor, totalCrafters } from '../engine/premium';
   import { computeFlowRates, netRate, secondsToDry } from '../engine/rates';
   import { game } from '../engine/state';
-  import { collapsed, isCollapsed, toggleCollapsed } from '../util/collapse';
+  import type { Recipe } from '../engine/types';
+  import { collapsed, isOpen, toggleCollapsed } from '../util/collapse';
   import { formatDuration, formatNumber } from '../util/format';
-  import { holdRepeat } from '../util/holdRepeat';
-  import { openMaterial, openTech, searchFilters } from '../util/nav';
+  import { openMaterial, searchFilters } from '../util/nav';
   import { rawCost } from '../util/rawCost';
   import { settings } from '../util/settings';
-  import type { Recipe } from '../engine/types';
 
   // The tech node whose research unlocks each recipe (for the locked hint).
   // Unlock effects live on majors, which are identical in both mode trees, so
@@ -32,8 +34,7 @@
     ),
   );
 
-  // Raw cost is static per recipe, so expand it once up front — deriving it
-  // per card per render did a linear RECIPES.find each time. Only recipes
+  // Raw cost is static per recipe, so expand it once up front. Only recipes
   // with crafted inputs show it (raws-only recipes ARE their raw cost).
   const rawEntriesByRecipe = new Map<string, [string, number][]>(
     RECIPES.map((recipe) => {
@@ -44,22 +45,11 @@
     }),
   );
 
-  const branchLabel = {
-    magic: '✦ Magic',
-    tech: '⚙ Tech',
-    magitech: '⚡ Magitech',
-    prestige: '🏗 Expansion', // unreachable today (prestige nodes unlock nothing), keeps the map total
-  } as const;
+  const nameOf = (id: string) => RESOURCE_BY_ID[id]?.name ?? id;
+  // Every recipe outputs exactly one item type; its icon stands in for the recipe.
+  const outputId = (recipe: Recipe) => Object.keys(recipe.outputs)[0];
 
   const query = $derived(($searchFilters.craft ?? '').trim().toLowerCase());
-
-  // "Staffed only" narrows the list to recipes with crafters assigned — with
-  // ~200 recipes, finding the handful that are actually running is the most
-  // common scan. Local state: leaving the tab resets it, same as search.
-  let staffedOnly = $state(false);
-  const staffedCount = $derived(
-    Object.entries($game.craftAssignment).filter(([id, n]) => n > 0 && RECIPE_BY_ID[id]).length,
-  );
 
   // A recipe matches on its own name or on any output OR input material's
   // name — filtering for an item surfaces both the recipes that produce it
@@ -67,245 +57,211 @@
   function matchesQuery(recipe: Recipe, q: string): boolean {
     if (!q) return true;
     if (recipe.name.toLowerCase().includes(q)) return true;
-    const nameHas = (id: string) => (RESOURCE_BY_ID[id]?.name ?? '').toLowerCase().includes(q);
+    const nameHas = (id: string) => nameOf(id).toLowerCase().includes(q);
     return Object.keys(recipe.outputs).some(nameHas) || Object.keys(recipe.inputs).some(nameHas);
   }
 
   // Rebuilt on every game tick, so it's a single pass over the catalog with
-  // Set membership — a filter per category with `.includes` per recipe made
-  // each rebuild O(categories × recipes × unlocked).
+  // Set membership.
   const unlockedRecipeSet = $derived(new Set($game.unlockedRecipes));
+  const visible = $derived(RECIPES.filter((r) => matchesQuery(r, query)));
   const groups = $derived.by(() => {
     const byCategory = new Map(
-      CATEGORY_ORDER.map((cat) => [
-        cat.id,
-        { ...cat, unlocked: [] as Recipe[], locked: [] as Recipe[] },
-      ]),
+      CATEGORY_ORDER.map((cat) => [cat.id, { ...cat, recipes: [] as Recipe[] }]),
     );
-    for (const r of RECIPES) {
-      const group = byCategory.get(r.category);
-      if (!group || !matchesQuery(r, query)) continue;
-      // Locked recipes can't be staffed, so the staffed filter empties them too.
-      if (staffedOnly && ($game.craftAssignment[r.id] ?? 0) <= 0) continue;
-      (unlockedRecipeSet.has(r.id) ? group.unlocked : group.locked).push(r);
+    for (const r of visible) {
+      if (unlockedRecipeSet.has(r.id)) byCategory.get(r.category)?.recipes.push(r);
     }
-    return [...byCategory.values()].filter((g) => g.unlocked.length > 0 || g.locked.length > 0);
+    return [...byCategory.values()].filter((g) => g.recipes.length > 0);
   });
+  // Pinned on top: every staffed recipe regardless of category — the
+  // handful actually running is what players check most.
+  const active = $derived(
+    visible.filter((r) => unlockedRecipeSet.has(r.id) && ($game.craftAssignment[r.id] ?? 0) > 0),
+  );
+  const locked = $derived(
+    visible
+      .filter((r) => !unlockedRecipeSet.has(r.id))
+      .map((r) => ({ id: outputId(r), name: r.name, tech: unlockedBy.get(r.id) })),
+  );
   const idle = $derived(idleCrafters($game));
 
   // Global per-material flow (gatherers + all staffed recipes), driving the
-  // net-drain tint, "dry in" countdown, and starvation warning per card.
+  // subline warnings and the expanded panel's per-input balance.
   const rates = $derived(computeFlowRates($game, $account));
 
-  // Tooltip suffix for a staffed recipe's input: this card's own draw plus
-  // the material's economy-wide balance.
-  function flowLabel(id: string, drain: number): string {
-    const net = netRate(rates, id);
-    let text = ` · using ${formatNumber(drain)}/s here · net ${net < 0 ? '−' : '+'}${formatNumber(Math.abs(net))}/s`;
-    const dry = secondsToDry($game, rates, id);
-    if (Number.isFinite(dry)) text += ` · dry in ~${formatDuration(dry)}`;
-    return text;
-  }
+  // One row expanded at a time, keyed by section so the pinned Active copy
+  // and the category copy of the same recipe open independently.
+  let expanded = $state<string | null>(null);
+  const toggle = (key: string) => (expanded = expanded === key ? null : key);
 
-  // Raw-cost summary for the output chip's tooltip — the visible raw ≈ line
-  // went away when cards tightened to two rows.
-  function rawLabel(raw: [string, number][]): string {
-    if (!raw.length) return '';
-    const parts = raw.map(([id, n]) => `${formatNumber(Math.ceil(n))} ${RESOURCE_BY_ID[id]?.name ?? id}`);
-    return ` · raw ≈ ${parts.join(', ')}`;
-  }
+  // Groups start collapsed (search shows everything); the open set persists.
+  const groupOpen = (id: string) => !!query || isOpen($collapsed, 'craft-open', id);
 
-  // Every recipe outputs exactly one item type; its icon stands in for the recipe.
-  const outputId = (recipe: Recipe) => Object.keys(recipe.outputs)[0];
+  const duration = (recipe: Recipe) => recipe.craftTimeSeconds * craftTimeFactor($account);
+
+  // Collapsed subline. Unstaffed: the plain recipe ratio in words. Staffed:
+  // output rate, downgraded to the worst input problem — red when a craft
+  // can't be paid for right now, amber when an input is draining dry.
+  function summarize(
+    recipe: Recipe,
+    assigned: number,
+  ): { text: string; tone: 'muted' | 'ok' | 'warn' | 'danger' } {
+    const perCraft = (recipe.outputs[outputId(recipe)] ?? 0) * $game.multipliers.craftOutput;
+    if (assigned <= 0) {
+      const ins = Object.entries(recipe.inputs)
+        .map(([id, n]) => `${n} ${nameOf(id)}`)
+        .join(' + ');
+      return { text: `${ins} → ${formatNumber(perCraft)} · ${formatNumber(duration(recipe))}s`, tone: 'muted' };
+    }
+    const out = `+${formatNumber((assigned * perCraft) / duration(recipe))}/s`;
+    let worst: { text: string; tone: 'warn' | 'danger' } | null = null;
+    for (const [id, n] of Object.entries(recipe.inputs)) {
+      if (($game.resources[id] ?? 0) < n) {
+        worst = { text: `${out} · out of ${nameOf(id)}`, tone: 'danger' };
+        break;
+      }
+      const dry = secondsToDry($game, rates, id);
+      if (Number.isFinite(dry) && !worst) {
+        worst = { text: `${out} · ${nameOf(id)} dry in ~${formatDuration(dry)}`, tone: 'warn' };
+      }
+    }
+    return worst ?? { text: out, tone: 'ok' };
+  }
 </script>
 
 <SearchBox view="craft" placeholder="Search recipes & materials…" />
-<div class="slots">
-  <span class="count" title="{idle} idle of {totalCrafters($game, $account)} crafters">
-    <Icon id={CRAFTER.icon} tint={false} /> <strong>{idle}</strong>/{totalCrafters($game, $account)} idle
-  </span>
-  <button
-    class="staffed"
-    class:on={staffedOnly}
-    disabled={staffedCount === 0 && !staffedOnly}
-    title="Show only recipes with crafters assigned"
-    onclick={() => (staffedOnly = !staffedOnly)}
+
+<WorkerBudget
+  icon={CRAFTER.icon}
+  idle={idle}
+  total={totalCrafters($game, $account)}
+  noun="crafters"
+  onclear={unassignAllCrafters}
+  onfill={assignAllCrafters}
+/>
+
+{#snippet row(recipe: Recipe, section: string)}
+  {@const assigned = $game.craftAssignment[recipe.id] ?? 0}
+  {@const key = `${section}:${recipe.id}`}
+  {@const s = summarize(recipe, assigned)}
+  {@const out = outputId(recipe)}
+  <WorkerRow
+    id={out}
+    name={recipe.name}
+    stock={$game.resources[out] ?? 0}
+    {assigned}
+    {idle}
+    workerIcon={CRAFTER.icon}
+    summary={s.text}
+    tone={s.tone}
+    expanded={expanded === key}
+    ontoggle={() => toggle(key)}
+    onassign={(d) => assignCrafter(recipe.id, d)}
   >
-    ⚒ {staffedCount} active
-  </button>
-  <button onclick={unassignAllCrafters}>Unassign all</button>
-  <button class="fill" disabled={idle <= 0} onclick={assignAllCrafters}>Assign evenly</button>
-</div>
-<div class="groups">
-  {#if staffedOnly && groups.length === 0}
-    <p class="muted empty">No staffed recipes{query ? ' match the search' : ''} — assign crafters to see them here.</p>
-  {/if}
-  {#each groups as group (group.id)}
-    <button class="group-head" onclick={() => toggleCollapsed('craft', group.id)}>
-      <span>{group.icon} {group.label}</span>
-      <span class="muted">
-        {group.unlocked.length}/{group.unlocked.length + group.locked.length}
-        {isCollapsed($collapsed, 'craft', group.id) ? '▸' : '▾'}
-      </span>
-    </button>
-    {#if query || staffedOnly || !isCollapsed($collapsed, 'craft', group.id)}
-      <div class="list">
-        {#each group.unlocked as recipe (recipe.id)}
-            {@const assigned = $game.craftAssignment[recipe.id] ?? 0}
-            {@const duration = recipe.craftTimeSeconds * craftTimeFactor($account)}
-            {@const raw = rawEntriesByRecipe.get(recipe.id) ?? []}
-            <div class="card craft">
-              <button
-                class="chev remove"
-                aria-label="Unassign a crafter from {recipe.name}"
-                disabled={assigned <= 0}
-                use:holdRepeat={() => assignCrafter(recipe.id, -1)}
-              >
-                <svg viewBox="0 0 24 48" aria-hidden="true"><path d="M19 7 L7 24 L19 41" /></svg>
-              </button>
-              <div class="mid">
-                <div class="title">
-                  <span class="icon"><Icon id={outputId(recipe)} /></span>
-                  <span class="name">{recipe.name}</span>
-                  <span class="amount">{formatNumber($game.resources[outputId(recipe)] ?? 0)}</span>
-                  <span class="crew" class:idle={assigned <= 0}>
-                    <Icon id={CRAFTER.icon} tint={false} /><strong>{assigned}</strong>
-                  </span>
-                </div>
-                <!-- Icon-only chips keep the recipe to one row; the material
-                     name lives in the tooltip and (with links on) the tap. -->
-                <!-- Unstaffed: the plain recipe ratio (2 🪵 → 1 🪧). Staffed: pure
-                     flow (−x/s → +x/s). Stock, net rate, and dry countdown live
-                     in the tooltip only. -->
-                <div class="io">
-                  {#each Object.entries(recipe.inputs) as [id, n] (id)}
-                    {@const have = $game.resources[id] ?? 0}
-                    {@const drain = (assigned * n) / duration}
-                    {@const draining = assigned > 0 && netRate(rates, id) < 0}
-                    {@const label =
-                      `${RESOURCE_BY_ID[id]?.name ?? id} — need ${n}, have ${formatNumber(have)}` +
-                      (assigned > 0 ? flowLabel(id, drain) : '')}
-                    {#if $settings.materialLinks}
-                      <button
-                        class="item link"
-                        class:short={have < n}
-                        class:drain={draining}
-                        title={label}
-                        aria-label={label}
-                        onclick={() => openMaterial(id)}
-                      >
-                        <Icon {id} />{#if assigned > 0}−{formatNumber(drain)}/s{:else}{n}{/if}
-                      </button>
-                    {:else}
-                      <span class="item" class:short={have < n} class:drain={draining} title={label}>
-                        <Icon {id} />{#if assigned > 0}−{formatNumber(drain)}/s{:else}{n}{/if}
-                      </span>
-                    {/if}
-                  {/each}
-                  <span class="arrow">→</span>
-                  {#each Object.entries(recipe.outputs) as [id, n] (id)}
-                    {@const perCraft = n * $game.multipliers.craftOutput}
-                    <span
-                      class="item out"
-                      title="{RESOURCE_BY_ID[id]?.name} — {formatNumber(perCraft)} per craft · ⏱ {formatNumber(duration)}s{rawLabel(raw)}"
-                    >
-                      <Icon {id} />{#if assigned > 0}+{formatNumber((assigned * perCraft) / duration)}/s{:else}{formatNumber(perCraft)}{/if}
-                    </span>
-                  {/each}
-                </div>
-              </div>
-              <button
-                class="chev add"
-                aria-label="Assign a crafter to {recipe.name}"
-                disabled={idle <= 0}
-                use:holdRepeat={() => assignCrafter(recipe.id, 1)}
-              >
-                <svg viewBox="0 0 24 48" aria-hidden="true"><path d="M5 7 L17 24 L5 41" /></svg>
-              </button>
-            </div>
-        {/each}
-        {#each group.locked as recipe (recipe.id)}
-          {@const tech = unlockedBy.get(recipe.id)}
-          <div class="card dim">
-            <div class="head">
-              <span class="rname"><span class="grey"><Icon id={outputId(recipe)} /></span> {recipe.name}</span>
-              <span class="time muted">🔒</span>
-            </div>
-            {#if tech}
-              <button class="hint muted link" title="Show {tech.name} in the research tree" onclick={() => openTech(tech.id)}>
-                Research <strong>{tech.name}</strong>
-                <span class="branch {tech.branch}">{branchLabel[tech.branch]}</span>
-              </button>
-            {:else}
-              <span class="hint muted">Unlock not available yet</span>
+    {#snippet details()}
+      {@const dur = duration(recipe)}
+      {@const raw = rawEntriesByRecipe.get(recipe.id) ?? []}
+      <div class="io">
+        {#each Object.entries(recipe.inputs) as [id, n] (id)}
+          {@const have = $game.resources[id] ?? 0}
+          {@const net = netRate(rates, id)}
+          {@const dry = secondsToDry($game, rates, id)}
+          {@const short = have < n}
+          {#snippet chipBody()}
+            <span class="chip-head"><Icon {id} /> {nameOf(id)}</span>
+            <span class="chip-sub">
+              {#if assigned > 0}
+                −{formatNumber((assigned * n) / dur)}/s · have {formatNumber(have)}
+              {:else}
+                need {n} · have {formatNumber(have)}
+              {/if}
+            </span>
+            {#if assigned > 0}
+              <span class="chip-sub">
+                net {net < 0 ? '−' : '+'}{formatNumber(Math.abs(net))}/s{#if Number.isFinite(dry)} · dry ~{formatDuration(dry)}{/if}
+              </span>
             {/if}
+          {/snippet}
+          {#if $settings.materialLinks}
+            <button class="chip link" class:short class:drain={!short && assigned > 0 && net < 0} onclick={() => openMaterial(id)}>
+              {@render chipBody()}
+            </button>
+          {:else}
+            <div class="chip" class:short class:drain={!short && assigned > 0 && net < 0}>
+              {@render chipBody()}
+            </div>
+          {/if}
+        {/each}
+        <span class="arrow muted">→</span>
+        {#each Object.entries(recipe.outputs) as [id, n] (id)}
+          {@const perCraft = n * $game.multipliers.craftOutput}
+          <div class="chip out">
+            <span class="chip-head"><Icon {id} /> {nameOf(id)}</span>
+            <span class="chip-sub">
+              {#if assigned > 0}
+                +{formatNumber((assigned * perCraft) / dur)}/s
+              {:else}
+                {formatNumber(perCraft)} per craft
+              {/if}
+            </span>
           </div>
         {/each}
       </div>
-    {/if}
-  {/each}
-</div>
+      <p class="facts muted">
+        ⏱ {formatNumber(dur)}s per craft
+        {#if raw.length}
+          · raw ≈ {raw.map(([id, n]) => `${formatNumber(Math.ceil(n))} ${nameOf(id)}`).join(', ')}
+        {/if}
+      </p>
+    {/snippet}
+  </WorkerRow>
+{/snippet}
+
+{#if active.length > 0}
+  <h3 class="section">Active <span class="muted">{active.length}</span></h3>
+  <div class="list">
+    {#each active as recipe (recipe.id)}
+      {@render row(recipe, 'active')}
+    {/each}
+  </div>
+{/if}
+
+{#if groups.length === 0 && query}
+  <p class="muted empty">No recipes match “{query}”.</p>
+{/if}
+
+{#each groups as group (group.id)}
+  <button class="group-head" aria-expanded={groupOpen(group.id)} onclick={() => toggleCollapsed('craft-open', group.id)}>
+    <span>{group.icon} {group.label}</span>
+    <span class="muted">{group.recipes.length} {groupOpen(group.id) ? '▾' : '▸'}</span>
+  </button>
+  {#if groupOpen(group.id)}
+    <div class="list">
+      {#each group.recipes as recipe (recipe.id)}
+        {@render row(recipe, group.id)}
+      {/each}
+    </div>
+  {/if}
+{/each}
+
+<LockedList items={locked} />
 
 <style>
+  .section {
+    display: flex;
+    justify-content: space-between;
+    margin: 2px 4px 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+
   .empty {
     text-align: center;
     padding: 24px 12px 8px;
-  }
-
-  .slots {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    padding: 6px 6px 6px 12px;
-    margin-bottom: 10px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    font-size: 0.9rem;
-  }
-
-  .count {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    margin-right: auto;
-    white-space: nowrap;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .slots button {
-    min-height: 36px;
-    padding: 0 10px;
-    font-size: 0.8rem;
-    white-space: nowrap;
-  }
-
-  .slots .staffed {
-    border-radius: var(--radius-pill);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .slots .staffed.on {
-    border-color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 16%, var(--panel));
-    color: var(--accent);
-    font-weight: 600;
-  }
-
-  .slots .fill {
-    background: var(--grad-primary);
-    border: none;
-    color: #fff;
-    font-weight: 600;
-  }
-
-  .groups {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
   }
 
   .group-head {
@@ -313,6 +269,7 @@
     justify-content: space-between;
     align-items: center;
     width: 100%;
+    margin-top: 8px;
     padding: 8px 12px;
     background: linear-gradient(
       135deg,
@@ -325,256 +282,85 @@
     text-align: left;
   }
 
-  .list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+  .group-head + .list {
+    margin-top: 4px;
   }
 
-  .card {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 12px;
+  .list {
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
-  }
-
-  /* Craft cards: chevron rails on the edges, info centered between them. */
-  .card.craft {
-    display: grid;
-    grid-template-columns: 52px 1fr 52px;
-    align-items: stretch;
-    gap: 0;
-    padding: 0;
     overflow: hidden;
-    user-select: none;
-    -webkit-user-select: none;
   }
 
-  .chev {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    border: none;
-    border-radius: 0;
-    background: color-mix(in srgb, var(--panel-2) 55%, transparent);
-    color: var(--accent);
-    touch-action: none;
-    -webkit-touch-callout: none;
-  }
-
-  .chev.remove {
-    border-right: 1px solid var(--border);
-    color: var(--danger);
-  }
-
-  .chev.add {
-    border-left: 1px solid var(--border);
-  }
-
-  .chev svg {
-    width: 20px;
-    height: 40px;
-    transition: transform 0.08s ease;
-  }
-
-  .chev path {
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 5;
-    stroke-linejoin: miter;
-    stroke-linecap: butt;
-  }
-
-  .chev:not(:disabled):active {
-    transform: none; /* the global button squish moves the whole rail; scale the arrow instead */
-    background: color-mix(in srgb, currentColor 16%, transparent);
-  }
-
-  .chev:not(:disabled):active svg {
-    transform: scale(0.8);
-  }
-
-  .chev:disabled {
-    opacity: 1;
-    color: color-mix(in srgb, var(--muted) 40%, transparent);
-    background: transparent;
-  }
-
-  .mid {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    min-width: 0;
-    padding: 7px 8px;
-    text-align: center;
-  }
-
-  .title {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-weight: 600;
-    font-size: 0.95rem;
-  }
-
-  .icon {
-    font-size: 1.2rem;
-    line-height: 1;
-  }
-
-  .name {
-    font-weight: 600;
-    font-size: 0.95rem;
-  }
-
-  .amount {
-    font-size: 0.95rem;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    color: var(--accent);
-  }
-
-  .io {
-    justify-content: center;
-  }
-
-  /* Crafter count rides the title row; dimmed while the recipe is unstaffed. */
-  .crew {
-    display: flex;
-    align-items: center;
-    gap: 3px;
-    margin-left: 4px;
-    font-size: 0.8rem;
-  }
-
-  .crew strong {
-    font-size: 0.95rem;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .crew.idle {
-    opacity: 0.5;
-  }
-
-  .head {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .rname {
-    font-weight: 600;
-  }
-
-  .time {
-    font-size: 0.75rem;
+  .list > :global(.row + .row) {
+    border-top: 1px solid var(--border);
   }
 
   .io {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 5px;
-    font-size: 0.85rem;
+    justify-content: center;
+    gap: 6px;
   }
 
-  .item {
-    padding: 2px 8px;
-    background: var(--panel-2);
-    border-radius: var(--radius-pill);
-    white-space: nowrap;
-  }
-
-  /* Input chips become tappable material links when the setting is on. */
-  button.item {
+  .chip {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
     min-height: 0;
-    border: none;
+    padding: 5px 10px;
+    background: var(--panel-2);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
     font: inherit;
+    font-size: 0.8rem;
     color: inherit;
+    text-align: left;
+    font-variant-numeric: tabular-nums;
   }
 
-  .item.link {
+  .chip-head {
+    font-weight: 600;
+  }
+
+  .chip.link .chip-head {
     text-decoration: underline dotted;
     text-underline-offset: 2px;
   }
 
-  /* Staffed flow tints: amber while the material drains economy-wide; the
-     red "can't afford a craft" state below wins when both apply. */
-  .item.drain {
+  .chip-sub {
+    font-size: 0.72rem;
+    color: var(--muted);
+  }
+
+  /* Flow tints: amber while the material drains economy-wide; red when a
+     craft can't be paid for right now. */
+  .chip.drain,
+  .chip.drain .chip-sub {
     color: var(--gold);
   }
 
-  .item.short {
+  .chip.short,
+  .chip.short .chip-sub {
     color: var(--danger);
   }
 
-  .item.out {
-    border: 1px solid var(--accent-dark);
+  .chip.out {
+    border-color: var(--accent-dark);
     box-shadow: 0 0 6px color-mix(in srgb, var(--accent-dark) 35%, transparent);
   }
 
   .arrow {
-    color: var(--muted);
+    font-size: 1.1rem;
   }
 
-  .card.dim {
-    opacity: 0.55;
-    gap: 4px;
-    padding: 8px 12px;
-  }
-
-  .grey {
-    filter: grayscale(1);
-  }
-
-  .hint {
+  .facts {
+    margin: 0;
     font-size: 0.75rem;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  /* The locked hint is a tap target that jumps to the tech node. */
-  button.hint {
-    min-height: 0;
-    padding: 0;
-    border: none;
-    background: none;
-    font: inherit;
-    text-align: left;
-  }
-
-  .hint.link strong {
-    text-decoration: underline dotted;
-    text-underline-offset: 2px;
-  }
-
-  .branch {
-    padding: 1px 8px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-pill);
-    font-size: 0.68rem;
-  }
-
-  .branch.magic {
-    color: var(--magic);
-    border-color: var(--magic);
-  }
-
-  .branch.tech {
-    color: var(--tech);
-    border-color: var(--tech);
-  }
-
-  .branch.magitech {
-    color: var(--magitech);
-    border-color: var(--magitech);
+    text-align: center;
   }
 </style>

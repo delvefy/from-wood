@@ -1,4 +1,5 @@
 import type { ResourceDef } from '../engine/types';
+import { RECIPES } from './recipes';
 
 // All resources AND crafted items live here — the engine treats them uniformly.
 // To add a new resource: add an entry (harvestAmount > 0 makes it gatherable by
@@ -6,8 +7,10 @@ import type { ResourceDef } from '../engine/types';
 // effect to a tech node in tech.ts. Crafted items (harvestAmount 0) are
 // revealed automatically when a recipe producing them unlocks.
 //
-// Sell prices follow a rough rule of thumb: raws scale ~2.5× per tier, crafted
-// items sell for ~1.4× the value of their inputs. Tuned by feel, not formula.
+// Raw sell prices are authored (~2.5× per tier). Crafted items carry an
+// authored `researchWeight` (the old by-feel price, ~1.4× their inputs) that
+// only shapes research cost mixes; their sell price is derived from their
+// recipe at the bottom of this file.
 
 // helpers keep the 200+ entry catalog readable: one line per entry.
 // Every raw takes the same time to gather; progression comes from prices, not speed.
@@ -26,17 +29,20 @@ const raw = (
   icon,
   tier,
   baseSellPrice,
+  researchWeight: baseSellPrice,
   unlockedByDefault,
   harvestAmount: 1,
   extractTimeSeconds: GATHER_TIME_SECONDS,
 });
 
-const item = (id: string, name: string, icon: string, tier: number, baseSellPrice: number): ResourceDef => ({
+// baseSellPrice is filled in by priceCraftedItems() below.
+const item = (id: string, name: string, icon: string, tier: number, researchWeight: number): ResourceDef => ({
   id,
   name,
   icon,
   tier,
-  baseSellPrice,
+  baseSellPrice: 0,
+  researchWeight,
   unlockedByDefault: false,
   harvestAmount: 0,
   extractTimeSeconds: 0,
@@ -293,3 +299,45 @@ export const RESOURCES: ResourceDef[] = [
 export const RESOURCE_BY_ID: Record<string, ResourceDef> = Object.fromEntries(
   RESOURCES.map((r) => [r.id, r]),
 );
+
+// ---- Crafted sell prices ------------------------------------------------------
+// Every crafter adds a fixed, tier-scaled amount of value per second on top of
+// its inputs:
+//   price = (input value + K(tier) × bestRawRate(tier) × craftTime) / outputCount
+// bestRawRate(tier) is what one gatherer earns per second on the priciest raw
+// of that tier (raws stop at tier 6), so K is measured in gatherers. At K = 28
+// a crafter out-earns, per credit, the gatherer it competes with (crafter #k
+// vs gatherer #10k) by ~2×; +8% per tier rewards moving crafters deeper.
+const CRAFTER_VALUE_K = 28;
+const CRAFTER_VALUE_TIER_GROWTH = 1.08;
+
+// Two significant digits from 100 up, whole credits below.
+const nicePrice = (n: number): number => {
+  if (n < 100) return Math.max(1, Math.round(n));
+  const unit = 10 ** (Math.floor(Math.log10(n)) - 1);
+  return Math.round(n / unit) * unit;
+};
+
+(function priceCraftedItems() {
+  const raws = RESOURCES.filter((r) => r.harvestAmount > 0);
+  const maxRawTier = Math.max(...raws.map((r) => r.tier));
+  const bestRawRate = (tier: number): number => {
+    const t = Math.min(tier, maxRawTier);
+    return Math.max(...raws.filter((r) => r.tier <= t).map((r) => r.baseSellPrice / r.extractTimeSeconds));
+  };
+  const producer = new Map(RECIPES.map((r) => [Object.keys(r.outputs)[0], r]));
+  const done = new Set(raws.map((r) => r.id));
+  // Inputs first (recursive), so every price builds on already-derived ones.
+  const price = (id: string): number => {
+    const def = RESOURCE_BY_ID[id];
+    if (done.has(id)) return def.baseSellPrice;
+    done.add(id); // also guards against recipe cycles
+    const recipe = producer.get(id);
+    if (!recipe) return (def.baseSellPrice = def.researchWeight);
+    const inputValue = Object.entries(recipe.inputs).reduce((sum, [i, n]) => sum + n * price(i), 0);
+    const k = CRAFTER_VALUE_K * CRAFTER_VALUE_TIER_GROWTH ** (def.tier - 1);
+    const added = k * bestRawRate(def.tier) * recipe.craftTimeSeconds;
+    return (def.baseSellPrice = nicePrice((inputValue + added) / recipe.outputs[id]));
+  };
+  for (const r of RESOURCES) price(r.id);
+})();

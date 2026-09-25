@@ -1,14 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { GROUP_SIZE, REWARD_SUMMARY, SCHEDULE_SUMMARY, rewardLabel } from '../content/tournament';
-  import { gameMode } from '../engine/mode';
   import {
     fetchLeaderboard,
     joinTournament,
     leaderboard,
     maybeSubmitScore,
     refreshTournamentState,
-    switchMode,
     tournamentError,
     tournamentState,
   } from '../engine/tournament';
@@ -18,7 +16,6 @@
 
   let loading = $state(true);
   let joining = $state(false);
-  let switching = $state(false);
   let joinError = $state<string | null>(null);
   let now = $state(Date.now());
 
@@ -72,15 +69,6 @@
     }
   }
 
-  async function onSwitch(target: 'main' | 'tournament') {
-    switching = true;
-    try {
-      await switchMode(target);
-      if (target === 'tournament') activeTab.set('gather');
-    } finally {
-      switching = false;
-    }
-  }
 </script>
 
 <div class="wrap">
@@ -152,15 +140,6 @@
           Best synced score: {formatCredits(entry.score)} · scores sync about once a minute while
           you play your run.
         </p>
-        {#if $gameMode === 'main'}
-          <button class="primary" disabled={switching} onclick={() => onSwitch('tournament')}>
-            ▶ Continue tournament run
-          </button>
-        {:else}
-          <button class="secondary" disabled={switching} onclick={() => onSwitch('main')}>
-            ⏸ Back to the village
-          </button>
-        {/if}
       </div>
     {:else if running && !inCurrent}
       <div class="card">
@@ -193,11 +172,6 @@
         <p class="muted">
           The grounds are being swept. {SCHEDULE_SUMMARY}
         </p>
-        {#if $gameMode === 'tournament'}
-          <button class="secondary" disabled={switching} onclick={() => onSwitch('main')}>
-            ⏸ Back to the village
-          </button>
-        {/if}
       </div>
     {/if}
 
@@ -340,15 +314,6 @@
     padding: 10px;
     border-radius: var(--radius-sm);
     box-shadow: 0 0 10px color-mix(in srgb, var(--magic) 35%, transparent);
-  }
-
-  .secondary {
-    background: none;
-    border: 1px solid var(--border);
-    color: var(--text);
-    font-weight: 600;
-    padding: 10px;
-    border-radius: var(--radius-sm);
   }
 
   button:disabled {

@@ -34,9 +34,13 @@ sandboxed (IPC pipe); bundle scratch TS with `npx esbuild --bundle` instead.
   does nothing. Dispatch `pointerdown` on the button, then `pointerup` on `window`.
 - Svelte re-renders async: after a click that flips a `disabled` attr, wait a beat
   before clicking the next button in the same flow.
-- Fast-forward without waiting: the tick uses real elapsed time with up to 8h
+- Fast-forward without waiting: the tick uses real elapsed time with up to 24h
   catch-up, so `Date.now = () => orig() + 600_000` in the page advances the game
   ~10 min on the next 1s tick. (Basic Tools: 10 wood + 10 water, 30s research.)
+  A jump of an hour or more also pops the welcome-back report (engine/away.ts).
+- Faking an absence across a reload: the app saves on `beforeunload`, so rewinding
+  `lastSeen` in IndexedDB only sticks if you do it from a page where the app is
+  not mounted (any other path on `localhost:5173`), then navigate back.
 - Research-tree nodes/edges are viewport-culled (~27 of 495 at default zoom);
   count `.node` elements to check culling, pan via PointerEvents on `.viewport`.
 - Tab switching: `[...document.querySelectorAll('nav button')]` and match label

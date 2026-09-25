@@ -1,6 +1,14 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { VitePWA } from 'vite-plugin-pwa';
+
+// Baked into the bundle so a running build can tell the server which version
+// it is (lib/version.ts). package.json is the single source of truth — bump it
+// on every release that ships to a store.
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as {
+  version: string;
+};
 
 // CAP_BUILD=1 builds the bundle for the Capacitor native shell: assets load
 // from the app package (relative base instead of the GitHub Pages
@@ -10,6 +18,10 @@ const capBuild = !!process.env.CAP_BUILD;
 
 export default defineConfig({
   base: capBuild ? './' : '/from-wood/',
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+    __NATIVE_BUILD__: JSON.stringify(capBuild),
+  },
   plugins: [
     svelte(),
     VitePWA({

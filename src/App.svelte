@@ -10,12 +10,16 @@
   import ResourceBar from './components/ResourceBar.svelte';
   import SettingsView from './components/SettingsView.svelte';
   import TournamentView from './components/TournamentView.svelte';
+  import UpdateBanner from './components/UpdateBanner.svelte';
   import VillageBoardView from './components/VillageBoardView.svelte';
+  import WelcomeBackModal from './components/WelcomeBackModal.svelte';
   import { resetTickClock, runTick } from './engine/actions';
+  import { settleAway, settleIfAway } from './engine/away';
   import { initCloudSave, maybeCloudPush } from './engine/cloudSave';
   import { loadGame, saveGame } from './engine/save';
   import { maybeSubmitScore } from './engine/tournament';
   import { maybeSubmitVillageScore } from './engine/villageBoard';
+  import { initUpdateCheck } from './lib/version';
   import { activeTab } from './util/nav';
 
   let ready = $state(false);
@@ -25,12 +29,18 @@
     let saveTimer: number | undefined;
 
     (async () => {
-      await loadGame();
+      const caughtUp = await loadGame();
       initCloudSave();
+      initUpdateCheck();
       resetTickClock();
       ready = true;
+      // Catches the idle slot up too, then reports both if the player was away
+      // long enough to be worth telling about.
+      void settleAway(caughtUp);
       tickTimer = window.setInterval(() => {
-        runTick();
+        // A long jump here means the app was backgrounded, not killed — the
+        // same absence, reaching the player down a different path.
+        settleIfAway(runTick());
         maybeSubmitScore();
         maybeSubmitVillageScore();
       }, 1000);
@@ -63,7 +73,9 @@
 
 {#if ready}
   <ModeSwitch />
+  <UpdateBanner />
   <ResourceBar />
+  <WelcomeBackModal />
   <main>
     {#if $activeTab === 'gather'}
       <GatherView />

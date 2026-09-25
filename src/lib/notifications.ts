@@ -14,7 +14,7 @@ import { setTournamentRemindersSetting, settings } from '../util/settings';
 const CHANNEL_ID = 'tournament-starts';
 // Reserved id block; rescheduling always cancels this whole range first.
 const ID_BASE = 41_000;
-const HORIZON = 8; // next 8 starts ≈ 4 weeks of cover between app opens
+const HORIZON = 8; // one start a week, so ~8 weeks of cover between app opens
 
 export const notificationsSupported = (): boolean => Capacitor.isNativePlatform();
 
@@ -67,7 +67,7 @@ export async function scheduleTournamentReminders(): Promise<void> {
     notifications: starts.map((at, i) => ({
       id: ID_BASE + i,
       title: '🏆 Tournament open',
-      body: 'A new 3-day tournament just started. Join now to race for the top 20.',
+      body: "This week's tournament just started. Join now — every place in your group wins workers.",
       channelId: CHANNEL_ID,
       // Inexact alarm: a game reminder does not justify prompting for (or
       // shipping) Android's exact-alarm permission. allowWhileIdle still gets

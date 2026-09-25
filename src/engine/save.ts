@@ -9,6 +9,7 @@ import { tick } from './tick';
 import { resetTickClock } from './actions';
 import { clearTournamentMeta, getTournamentMeta } from './tournamentMeta';
 import type { GameState, TechId } from './types';
+import { totalValue } from './worth';
 
 // One save slot per mode: the village and the current tournament run are
 // fully independent games sharing the same engine.
@@ -17,7 +18,11 @@ const SAVE_KEYS: Record<GameMode, string> = {
   tournament: 'from-wood-tournament-save-v1',
 };
 const LEGACY_SAVE_KEYS = ['from-wood-save-v1'];
-export const OFFLINE_CAP_SECONDS = 8 * 3600;
+// How much time away a slot is paid for. Anything beyond this is forfeited,
+// so leaving for a week is worth the same as leaving for a day.
+export const OFFLINE_CAP_SECONDS = 24 * 3600;
+
+const OTHER_MODE: Record<GameMode, GameMode> = { main: 'tournament', tournament: 'main' };
 
 export async function saveGame(): Promise<void> {
   if (suspended) return;
@@ -69,8 +74,9 @@ export async function restoreSlots(slots: SlotSnapshot): Promise<void> {
 }
 
 // Loads the active slot's save (if any) and silently fast-forwards all timed
-// work for the time away (capped).
-export async function loadGame(): Promise<void> {
+// work for the time away (capped). Returns what the absence was worth, for the
+// welcome-back report; null when there was no save to load.
+export async function loadGame(): Promise<SlotCatchUp | null> {
   for (const key of LEGACY_SAVE_KEYS) void idbDel(key);
   const mode = get(gameMode);
   const saved = (await idbGet(SAVE_KEYS[mode])) as Partial<GameState> | undefined;
@@ -78,9 +84,39 @@ export async function loadGame(): Promise<void> {
     // An empty tournament slot starts fresh rather than leaking village state
     // (normally unreachable: joining writes a fresh save before switching).
     if (mode === 'tournament') game.set(createInitialState());
-    return;
+    return null;
   }
 
+  const s = hydrate(saved, mode);
+  const result = fastForward(s, mode);
+  game.set(s);
+  return result;
+}
+
+// What a slot earned while the player was away.
+export interface SlotCatchUp {
+  mode: GameMode;
+  seconds: number; // time actually credited (capped at OFFLINE_CAP_SECONDS)
+  gain: number; // net worth added by that catch-up
+}
+
+// Fast-forward the slot that is NOT being played and write it back, so the
+// welcome-back report can price both games at once. Without this the idle
+// slot's catch-up would not happen until the player switched to it.
+// Skipped mid account-swap, when the slots on disk are not this player's.
+export async function catchUpIdleSlot(): Promise<SlotCatchUp | null> {
+  if (suspended) return null;
+  const mode = OTHER_MODE[get(gameMode)];
+  const saved = (await idbGet(SAVE_KEYS[mode])) as Partial<GameState> | undefined;
+  if (!saved) return null;
+  const s = hydrate(saved, mode);
+  const result = fastForward(s, mode);
+  await idbSet(SAVE_KEYS[mode], JSON.parse(JSON.stringify(s)));
+  return result;
+}
+
+// Merge a raw slot payload into a full state for `mode`, without advancing it.
+function hydrate(saved: Partial<GameState>, mode: GameMode): GameState {
   const base = createInitialState();
   const unlockedTech = migrateVanishedTech(union([], saved.unlockedTech), mode);
   // Merge over the initial state so saves survive new content/fields, and
@@ -105,6 +141,13 @@ export async function loadGame(): Promise<void> {
     migrateLegacyPremium(legacyPremium);
   }
 
+  return s;
+}
+
+// Advance `s` by the time since it was last seen (capped) and stamp it as
+// current. Prices the state either side of the jump so the caller can tell the
+// player what the absence was worth.
+function fastForward(s: GameState, mode: GameMode): SlotCatchUp {
   const now = Date.now();
   // Tournament runs freeze at the finish line: catch-up never runs past it.
   let horizon = now;
@@ -113,14 +156,16 @@ export async function loadGame(): Promise<void> {
     if (meta) horizon = Math.min(now, meta.endsAt);
   }
   const elapsed = Math.min(
-    Math.max(Math.floor((horizon - (saved.lastSeen ?? horizon)) / 1000), 0),
+    Math.max(Math.floor((horizon - (s.lastSeen ?? horizon)) / 1000), 0),
     OFFLINE_CAP_SECONDS,
   );
 
-  if (elapsed > 0) tick(s, elapsed);
+  const before = elapsed > 0 ? totalValue(s, mode) : 0;
+  if (elapsed > 0) tick(s, elapsed, mode);
+  const gain = elapsed > 0 ? totalValue(s, mode) - before : 0;
 
   s.lastSeen = now;
-  game.set(s);
+  return { mode, seconds: elapsed, gain };
 }
 
 // Called on tournament join: overwrite the tournament slot with a brand-new

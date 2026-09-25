@@ -39,10 +39,12 @@ function hiredValue(config: WorkerConfig, owned: number): number {
 // Net worth: cash + stock at sell price + credits sunk into workers + resources
 // sunk into research (queued nodes count too — their cost is paid up-front and
 // refundable). O(resources + tech owned) per call, everything else precomputed.
-export function totalValue(s: GameState): number {
+// `mode` defaults to the live slot; pass it explicitly to value a state that is
+// not the one currently being played (the away report prices both slots).
+export function totalValue(s: GameState, mode: GameMode = get(gameMode)): number {
   let total = s.credits;
   const priceFactor = sellPriceFactor(getAccount());
-  const techValue = TECH_VALUE[get(gameMode)];
+  const techValue = TECH_VALUE[mode];
   for (const [id, n] of Object.entries(s.resources)) total += n * (PRICE[id] ?? 0) * priceFactor;
   total += hiredValue(GATHERER, s.workers) + hiredValue(CRAFTER, s.crafters);
   for (const id of s.unlockedTech) total += techValue[id] ?? 0;

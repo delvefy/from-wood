@@ -44,19 +44,20 @@ export function unlockOutputs(s: GameState, recipe: Recipe): void {
 }
 
 // Offline catch-up granularity for the craft flow. Online ticks (1s) always
-// fit in one sub-step; an 8h catch-up costs ~480 iterations.
+// fit in one sub-step; a full 24h catch-up costs ~1440 iterations.
 const CRAFT_SUBSTEP_SECONDS = 60;
 
 // Advances all timed work by `seconds`: gather flows, the research queue, and
 // craft flows. Deterministic and cheap; also used to fast-forward offline
-// progress.
-export function tick(s: GameState, seconds: number): GameState {
+// progress. `mode` defaults to the live slot — pass it explicitly when
+// fast-forwarding the slot that is NOT being played, so research resolves
+// against that slot's own tree.
+export function tick(s: GameState, seconds: number, mode: GameMode = get(gameMode)): GameState {
   // Premium managers double flow rates (0.5× time-per-run); hoisted since
   // they apply to all. Account-level, so they hold in the village and
   // tournament slots alike. Worker pace is mode-independent; research
   // durations are baked into each mode's own tree (see content/tech).
   const acct = getAccount();
-  const mode = get(gameMode);
   const gatherFactor = gatherTimeFactor(acct);
   const craftFactor = craftTimeFactor(acct);
 

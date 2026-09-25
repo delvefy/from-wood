@@ -1,6 +1,6 @@
 // Account deletion: re-verifies the caller's password, then removes their
-// auth.users row — every game table cascades from it (profiles → entries →
-// score_submissions, plus saves and village_scores). Deployed with JWT
+// auth.users row — every game table cascades from it (profiles → entries,
+// plus saves and village_scores). Deployed with JWT
 // verification left on (the default, see supabase/config.toml), so the
 // gateway rejects unauthenticated calls before the function runs. The
 // password check happens here, server-side, so a leaked session token alone

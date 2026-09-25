@@ -1,10 +1,10 @@
 import { get, writable } from 'svelte/store';
 import { randomPlayerName } from '../content/tournament';
 import { ensureSignedIn, supabase } from '../lib/supabase';
-import { getAccount, setRewardWorkers } from './account';
+import { setRewardWorkers } from './account';
 import { resetTickClock } from './actions';
+import { refreshServerClock } from './clock';
 import { gameMode, type GameMode } from './mode';
-import { totalCrafters, totalGatherers } from './premium';
 import { loadGame, saveGame, savesSuspended, writeFreshTournamentSave } from './save';
 import { game } from './state';
 import { getTournamentMeta, setTournamentMeta } from './tournamentMeta';
@@ -122,6 +122,7 @@ function errorMessage(err: unknown): string {
 // Parse a get_tournament_state payload and apply it everywhere it matters.
 function applyState(data: unknown): TournamentState {
   const st = parseState(data);
+  refreshServerClock(st.serverNow);
   tournamentState.set(st);
   tournamentError.set(null);
   syncMeta(st);
@@ -197,7 +198,8 @@ export async function switchMode(target: GameMode): Promise<void> {
 
 // Push the current run's net worth to the server, at most once a minute.
 // Fire-and-forget: submissions are monotonic server-side, so a dropped one
-// costs nothing — the next submit carries the higher score.
+// costs nothing — the next submit carries the higher score. The reply carries
+// the server's now(), which keeps the trusted clock fresh (engine/clock.ts).
 let lastSubmitAt = 0;
 
 export function maybeSubmitScore(force = false): void {
@@ -211,21 +213,12 @@ export function maybeSubmitScore(force = false): void {
   if (now < meta.startsAt || now > meta.endsAt) return;
   if (!force && now - lastSubmitAt < 60_000) return;
   lastSubmitAt = now;
-  const s = get(game);
-  const a = getAccount();
-  const score = totalValue(s);
-  // Worker counts feed the server's plausible-growth predictor; a score out
-  // of proportion to the workforce flags the entry for review.
-  const gatherers = totalGatherers(s, a);
-  const crafters = totalCrafters(s, a);
+  const score = totalValue(get(game));
   void (async () => {
     try {
       await ensureSignedIn();
-      await supabase.rpc('submit_score', {
-        p_score: score,
-        p_gatherers: gatherers,
-        p_crafters: crafters,
-      });
+      const { data } = await supabase.rpc('submit_score', { p_score: score });
+      refreshServerClock((data as { now_ms?: unknown } | null)?.now_ms);
     } catch {
       // Offline or transient — the next throttled submit retries.
     }

@@ -26,6 +26,10 @@ export default defineConfig({
     svelte(),
     VitePWA({
       disable: capBuild,
+      // The web build is retired (src/main.ts). Browsers that installed the
+      // PWA pick this worker up on their next online visit; it unregisters
+      // itself and drops the cached game, so they land on the store pointer.
+      selfDestroying: true,
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icons/icon-192.png', 'icons/icon-512.png'],
       manifest: {

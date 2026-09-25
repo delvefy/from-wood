@@ -7,7 +7,8 @@ import { getAccount } from './account';
 import { gameMode } from './mode';
 import { sellPriceFactor, totalCrafters, totalGatherers } from './premium';
 import { villageTreeComplete } from './prestige';
-import { OFFLINE_CAP_SECONDS, type SlotCatchUp } from './save';
+import { creditableSeconds, trustedNow } from './clock';
+import type { SlotCatchUp } from './save';
 import { game } from './state';
 import { canAfford, spendInputs, tick } from './tick';
 import type { GameState, ResourceId, TechId, WorkerConfig } from './types';
@@ -16,38 +17,43 @@ import { totalValue } from './worth';
 // ---- Game loop -------------------------------------------------------------
 
 // An app that was backgrounded rather than killed catches up through here
-// instead of through loadGame, so this path is capped at the save layer's
-// OFFLINE_CAP_SECONDS too — read inside runTick, not aliased here, since
-// actions and save import each other.
+// instead of through loadGame, under the same caps (engine/clock.ts).
 //
 // Jumps shorter than this are ordinary background-tab throttling, not an
 // absence; pricing them every second would be wasted work.
 const REPORTABLE_GAP_SECONDS = 60;
-let lastTickAt: number | null = null;
+let lastPerf: number | null = null;
 
-export function resetTickClock(now = Date.now()): void {
-  lastTickAt = now;
+export function resetTickClock(): void {
+  lastPerf = performance.now();
 }
 
-// Called once per second by the UI. Uses real elapsed time so throttled
-// background tabs catch up correctly on the next tick. Returns what the jump
-// was worth when it was long enough to be an absence (engine/away.ts decides
-// whether that is worth telling the player about), null otherwise.
-export function runTick(now = Date.now()): SlotCatchUp | null {
-  if (lastTickAt === null) lastTickAt = now;
-  const seconds = Math.min(Math.max((now - lastTickAt) / 1000, 0), OFFLINE_CAP_SECONDS);
-  lastTickAt = now;
-  if (seconds <= 0) return null;
+// Called once per second by the UI. Advances the live slot from its lastSeen
+// to trusted time (server-anchored, engine/clock.ts), so a throttled or
+// backgrounded app catches up on the next tick and the device clock is never
+// consulted. Before the first server sync only monotonic time spent in the
+// app counts. Returns what the jump was worth when it was long enough to be
+// an absence (engine/away.ts decides whether that is worth telling the player
+// about), null otherwise.
+export function runTick(): SlotCatchUp | null {
+  const perf = performance.now();
+  const played = lastPerf === null ? 0 : Math.max(perf - lastPerf, 0);
+  lastPerf = perf;
   const mode = get(gameMode);
+  const s = get(game);
+  const to = trustedNow() ?? s.lastSeen + played;
+  const seconds = creditableSeconds(mode, s.lastSeen, to);
+  if (seconds <= 0) {
+    // lastSeen ahead of the server (a save stamped by a fast device clock):
+    // rewind it without paying anything.
+    if (to < s.lastSeen) game.set({ ...s, lastSeen: to });
+    return null;
+  }
   const report = seconds >= REPORTABLE_GAP_SECONDS;
-  let caught: SlotCatchUp | null = null;
-  game.update((s) => {
-    const before = report ? totalValue(s, mode) : 0;
-    const next = { ...tick(s, seconds, mode) };
-    if (report) caught = { mode, seconds, gain: totalValue(next, mode) - before };
-    return next;
-  });
-  return caught;
+  const before = report ? totalValue(s, mode) : 0;
+  const next = { ...tick(s, seconds, mode), lastSeen: to };
+  game.set(next);
+  return report ? { mode, seconds, gain: totalValue(next, mode) - before } : null;
 }
 
 // ---- Workers / gather slots --------------------------------------------------

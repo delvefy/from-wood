@@ -116,5 +116,5 @@ export interface GameState {
   researchQueue: TechId[]; // head is being researched; one slot, rest wait
   researchProgress: number; // seconds into the queue head
   multipliers: Multipliers; // derived from tech, recomputed on unlock/load
-  lastSeen: number; // epoch ms, for offline progress
+  lastSeen: number; // trusted epoch ms the slot is simulated up to (engine/clock.ts)
 }

@@ -4,7 +4,7 @@
 -- Deletes every account and everything hanging off it. The FK graph does the
 -- work (same cascade delete-account/index.ts relies on for a single player):
 --
---   auth.users ─┬─> profiles ─┬─> entries ──> score_submissions
+--   auth.users ─┬─> profiles ─┬─> entries
 --               │             └─> village_scores
 --               ├─> saves
 --               └─> purchases
@@ -63,7 +63,6 @@ select
   (select count(*) from public.profiles)                as profiles,
   (select count(*) from public.saves)                   as saves,
   (select count(*) from public.entries)                 as entries,
-  (select count(*) from public.score_submissions)       as score_submissions,
   (select count(*) from public.village_scores)          as village_scores,
   (select count(*) from public.purchases)               as purchases,
   (select count(*) from public.password_reset_requests) as reset_requests,

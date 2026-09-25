@@ -1,32 +1,18 @@
-import { mount } from 'svelte';
-import { registerSW } from 'virtual:pwa-register';
-import { Capacitor } from '@capacitor/core';
-import { App as CapacitorApp } from '@capacitor/app';
 import './app.css';
-import App from './App.svelte';
-import { initTournamentReminders } from './lib/notifications';
-import { initPurchases } from './lib/purchases';
 
-// No-op in the Capacitor build (vite.config.ts disables the PWA plugin there).
-registerSW({ immediate: true });
-
-if (Capacitor.isNativePlatform()) {
-  // The game is a single-page tab UI with no webview history, so Android's
-  // back button minimizes the app (the platform-expected behavior) instead of
-  // doing nothing — a common Play review complaint against webview apps.
-  void CapacitorApp.addListener('backButton', ({ canGoBack }) => {
-    if (canGoBack) history.back();
-    else void CapacitorApp.minimizeApp();
-  });
+// The web version is retired: only the store apps run the game. A production
+// web build renders a pointer to the store instead of booting, and ships a
+// self-destroying service worker (vite.config.ts) so installed PWAs drop their
+// cached copy of the game. `npm run dev` still boots the game in the browser.
+// Both flags are build-time constants, so the web bundle leaves the game out.
+if (__NATIVE_BUILD__ || import.meta.env.DEV) {
+  void import('./boot');
+} else {
+  document.getElementById('app')!.innerHTML = `
+    <div class="retired">
+      <h1>From Wood is now an app</h1>
+      <p>The web version has closed. Play on Android:</p>
+      <p><a href="https://play.google.com/store/apps/details?id=victorblack.fromwood">Get it on Google Play</a></p>
+      <p class="muted">Registered players: sign in inside the app to continue your progress.</p>
+    </div>`;
 }
-
-// Native only (no-op on web): RevenueCat SDK setup + keeping its identity
-// pinned to the Supabase user id.
-initPurchases();
-
-// Native only (no-op on web): re-arm the local tournament-start reminders.
-initTournamentReminders();
-
-const app = mount(App, { target: document.getElementById('app')! });
-
-export default app;

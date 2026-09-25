@@ -2,6 +2,7 @@ import { writable } from 'svelte/store';
 import { RESOURCES } from '../content/resources';
 import { RECIPES } from '../content/recipes';
 import { CRAFTER, GATHERER } from '../content/workers';
+import { stampNow } from './clock';
 import { computeMultipliers } from './multipliers';
 import type { GameState } from './types';
 
@@ -22,7 +23,7 @@ export function createInitialState(): GameState {
     researchProgress: 0,
     // Empty tech set → identity multipliers; the mode argument is moot here.
     multipliers: computeMultipliers([], 'main'),
-    lastSeen: Date.now(),
+    lastSeen: stampNow(),
   };
 }
 

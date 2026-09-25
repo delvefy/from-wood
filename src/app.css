@@ -225,3 +225,21 @@ h2::before {
 .muted {
   color: var(--muted);
 }
+
+/* Retired web build (main.ts). */
+.retired {
+  margin: auto;
+  padding: 24px;
+  max-width: 420px;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.retired a {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.retired .muted {
+  color: var(--muted);
+}

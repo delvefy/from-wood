@@ -1,6 +1,7 @@
 import { get, writable } from 'svelte/store';
 import { randomPlayerName } from '../content/tournament';
 import { ensureSignedIn, supabase } from '../lib/supabase';
+import { refreshServerClock } from './clock';
 import { gameMode } from './mode';
 import { savesSuspended } from './save';
 import { game } from './state';
@@ -97,10 +98,11 @@ export function maybeSubmitVillageScore(force = false): void {
       await ensureSignedIn();
       // Fallback base only: the server names a player who has none yet (never
       // registered) and ignores this once a username has been chosen.
-      await supabase.rpc('submit_village_score', {
+      const { data } = await supabase.rpc('submit_village_score', {
         p_score: score,
         p_display_name: randomPlayerName(),
       });
+      refreshServerClock((data as { now_ms?: unknown } | null)?.now_ms);
     } catch {
       // Offline or transient — the next throttled submit retries.
     }

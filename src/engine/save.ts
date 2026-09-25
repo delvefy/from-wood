@@ -7,6 +7,7 @@ import { gameMode, type GameMode } from './mode';
 import { createInitialState, game } from './state';
 import { tick } from './tick';
 import { resetTickClock } from './actions';
+import { creditableSeconds, stampNow, trustedNow } from './clock';
 import { clearTournamentMeta, getTournamentMeta } from './tournamentMeta';
 import type { GameState, TechId } from './types';
 import { totalValue } from './worth';
@@ -18,15 +19,13 @@ const SAVE_KEYS: Record<GameMode, string> = {
   tournament: 'from-wood-tournament-save-v1',
 };
 const LEGACY_SAVE_KEYS = ['from-wood-save-v1'];
-// How much time away a slot is paid for. Anything beyond this is forfeited,
-// so leaving for a week is worth the same as leaving for a day.
-export const OFFLINE_CAP_SECONDS = 24 * 3600;
+export { OFFLINE_CAP_SECONDS } from './clock';
 
 const OTHER_MODE: Record<GameMode, GameMode> = { main: 'tournament', tournament: 'main' };
 
 export async function saveGame(): Promise<void> {
   if (suspended) return;
-  game.update((s) => ({ ...s, lastSeen: Date.now() }));
+  // No lastSeen stamp: the tick loop keeps it at trusted time (actions.ts).
   // Plain deep clone so IndexedDB never sees store-internal references.
   await idbSet(SAVE_KEYS[get(gameMode)], JSON.parse(JSON.stringify(get(game))));
 }
@@ -150,21 +149,21 @@ function hydrate(saved: Partial<GameState>, mode: GameMode): GameState {
   return s;
 }
 
-// Advance `s` by the time since it was last seen (capped) and stamp it as
-// current. Prices the state either side of the jump so the caller can tell the
-// player what the absence was worth.
+// Advance `s` from its lastSeen to trusted time (capped, engine/clock.ts) and
+// stamp it as current. Prices the state either side of the jump so the caller
+// can tell the player what the absence was worth. Without a server sync yet
+// nothing is credited and lastSeen stays put, so the absence is paid once the
+// server answers (by runTick for the live slot, next load for the idle one).
 function fastForward(s: GameState, mode: GameMode): SlotCatchUp {
-  const now = Date.now();
+  const now = trustedNow();
+  if (now === null) return { mode, seconds: 0, gain: 0 };
   // Tournament runs freeze at the finish line: catch-up never runs past it.
   let horizon = now;
   if (mode === 'tournament') {
     const meta = getTournamentMeta();
     if (meta) horizon = Math.min(now, meta.endsAt);
   }
-  const elapsed = Math.min(
-    Math.max(Math.floor((horizon - (s.lastSeen ?? horizon)) / 1000), 0),
-    OFFLINE_CAP_SECONDS,
-  );
+  const elapsed = Math.floor(creditableSeconds(mode, s.lastSeen ?? horizon, horizon));
 
   const before = elapsed > 0 ? totalValue(s, mode) : 0;
   if (elapsed > 0) tick(s, elapsed, mode);
@@ -178,7 +177,7 @@ function fastForward(s: GameState, mode: GameMode): SlotCatchUp {
 // run. Base workers (premium packs + tournament rewards) need no seeding here —
 // they live on the account and apply to whichever slot is loaded.
 export async function writeFreshTournamentSave(): Promise<void> {
-  const s: GameState = { ...createInitialState(), lastSeen: Date.now() };
+  const s: GameState = { ...createInitialState(), lastSeen: stampNow() };
   await idbSet(SAVE_KEYS.tournament, JSON.parse(JSON.stringify(s)));
 }
 

@@ -99,7 +99,9 @@ const AUTHORED_TIME = { root: 30, end: 86_400 };
 // which also grows their cost, since cost follows authored time.
 const PATH_STEP_GROWTH = 1.3;
 
-const price = (id: string) => RESOURCE_BY_ID[id]?.baseSellPrice ?? 0;
+// Research costs scale by the authored weights, not live sell prices, so
+// retuning crafted prices never changes research quantities or pacing.
+const price = (id: string) => RESOURCE_BY_ID[id]?.researchWeight ?? 0;
 const costValue = (cost: Record<string, number>): number =>
   Object.entries(cost).reduce((sum, [id, n]) => sum + n * price(id), 0);
 

@@ -191,8 +191,7 @@ export async function switchMode(target: GameMode): Promise<void> {
   if (get(gameMode) === target) return;
   if (get(gameMode) === 'tournament') maybeSubmitScore(true);
   await saveGame();
-  gameMode.set(target);
-  await loadGame();
+  await loadGame(target);
   resetTickClock();
 }
 

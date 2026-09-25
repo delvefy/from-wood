@@ -8,6 +8,7 @@ export interface ResourceDef {
   icon: string;
   tier: number; // gating / progression order
   baseSellPrice: number; // credits per unit when sold
+  researchWeight: number; // authored value, only used to scale research cost mixes (content/tech)
   unlockedByDefault: boolean;
   harvestAmount: number; // gained per completed gather cycle per worker; 0 = crafted item, not gatherable
   extractTimeSeconds: number; // gather cycle length (before speed multipliers)

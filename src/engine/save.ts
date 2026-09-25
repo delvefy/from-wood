@@ -68,16 +68,21 @@ export async function restoreSlots(slots: SlotSnapshot): Promise<void> {
     : idbDel(SAVE_KEYS.tournament));
 }
 
-// Loads the active slot's save (if any) and silently fast-forwards all timed
-// work for the time away (capped).
-export async function loadGame(): Promise<void> {
+// Loads `mode`'s save (if any), makes it the live slot, and silently
+// fast-forwards all timed work for the time away (capped).
+//
+// Everything after the IDB read is synchronous, so gameMode and game flip
+// together: the tick/autosave/score-submit intervals can never observe the new
+// mode paired with the old slot's state (that race once submitted the
+// village's net worth as a tournament score).
+export async function loadGame(mode: GameMode = get(gameMode)): Promise<void> {
   for (const key of LEGACY_SAVE_KEYS) void idbDel(key);
-  const mode = get(gameMode);
   const saved = (await idbGet(SAVE_KEYS[mode])) as Partial<GameState> | undefined;
+  gameMode.set(mode);
   if (!saved) {
-    // An empty tournament slot starts fresh rather than leaking village state
-    // (normally unreachable: joining writes a fresh save before switching).
-    if (mode === 'tournament') game.set(createInitialState());
+    // An empty slot starts fresh rather than leaking the other slot's state
+    // (normally unreachable for tournaments: joining writes a fresh save first).
+    game.set(createInitialState());
     return;
   }
 
